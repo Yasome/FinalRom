@@ -120,16 +120,10 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-
-
 /// Shows a "Saved" SnackBar with an optional Share action, used after a
 /// mobile operation finishes. The file is already written to a browsable folder;
 /// sharing is offered as a one-tap convenience rather than popped automatically.
-void showSavedSnackBar(
-  BuildContext context,
-  String outputPath, {
-  String? trailing,
-}) {
+void showSavedSnackBar(BuildContext context, String outputPath, {String? trailing}) {
   final loc = AppLocalizations.of(context)!;
   final fileName = outputPath.split(RegExp(r'[\\/]')).last;
   final message = trailing == null
@@ -179,9 +173,9 @@ void showErrorSnackBar(BuildContext context, String message) {
 
 /// Shows a neutral, themed informational SnackBar (e.g. "Cancelling…").
 void showInfoSnackBar(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text(message), duration: const Duration(seconds: 5)),
-  );
+  ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(SnackBar(content: Text(message), duration: const Duration(seconds: 5)));
 }
 
 /// Shows a themed warning SnackBar, using the app's semantic warning color so
@@ -225,6 +219,9 @@ class _DragDropTargetState extends State<DragDropTarget> {
     // file picker remains the import path there. Never wrap the child in a
     // DropTarget on Android.
     if (defaultTargetPlatform == TargetPlatform.android) {
+      return widget.child;
+    }
+    if (!TickerMode.valuesOf(context).enabled) {
       return widget.child;
     }
     final loc = AppLocalizations.of(context)!;
