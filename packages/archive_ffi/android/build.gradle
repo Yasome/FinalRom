@@ -1,0 +1,29 @@
+// AGP 9 + built-in Kotlin: plugins are resolved from the app's
+// settings.gradle.kts (pluginManagement), so this module must NOT pin its own
+// AGP via a buildscript classpath, and must not apply the Kotlin plugin (this
+// is a pure native C/C++ plugin). See:
+// https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin/for-plugin-authors
+plugins {
+    id "com.android.library"
+}
+
+group 'com.yasome.archive_ffi'
+version '1.0'
+
+android {
+    namespace 'com.yasome.archive_ffi'
+    compileSdk 34
+
+    defaultConfig {
+        minSdk 21
+    }
+
+    // The native build. The path is relative to this build.gradle file.
+    externalNativeBuild {
+        cmake {
+            path "../src/CMakeLists.txt"
+            // No version pin: use the CMake bundled with the Android SDK/AGP
+            // (our CMakeLists only needs >= 3.10).
+        }
+    }
+}
