@@ -26,6 +26,9 @@ class ChdTab extends StatefulWidget {
 class _ChdTabState extends State<ChdTab> {
   ChdAction _action = ChdAction.create;
 
+  // CD (false) or DVD (true) output for create jobs; ignored by extract.
+  bool _createDvd = false;
+
   // The queue of files to process, one after another.
   List<String> _selectedFiles = [];
 
@@ -96,6 +99,17 @@ class _ChdTabState extends State<ChdTab> {
                           });
                         },
                 ),
+                if (_action == ChdAction.create)
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(loc.chdDiscType),
+                    subtitle: Text(
+                        _createDvd ? loc.chdDiscTypeDvd : loc.chdDiscTypeCd),
+                    value: _createDvd,
+                    onChanged: isRunning
+                        ? null
+                        : (value) => setState(() => _createDvd = value),
+                  ),
                 AppSpacing.gapLg,
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -289,6 +303,7 @@ class _ChdTabState extends State<ChdTab> {
             StartChd(
               jobs: jobs,
               force: true,
+              createDvd: _createDvd,
               options: ChdOptions(
                 codecs: tuning.chdCodecs,
                 numProcessors: tuning.chdNumProcessors,
