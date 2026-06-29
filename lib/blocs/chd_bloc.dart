@@ -50,14 +50,19 @@ class StartChd extends ChdEvent {
   /// [options.force] so existing callers keep working.
   final ChdOptions options;
 
+  /// When true, create jobs produce DVD CHDs (chdman createdvd) instead of CD
+  /// CHDs. Applies to the whole queue; ignored by extract jobs.
+  final bool createDvd;
+
   const StartChd({
     required this.jobs,
     this.force = false,
     this.options = const ChdOptions(),
+    this.createDvd = false,
   });
 
   @override
-  List<Object?> get props => [jobs, force, options];
+  List<Object?> get props => [jobs, force, options, createDvd];
 }
 
 class CancelChd extends ChdEvent {}
@@ -122,6 +127,9 @@ class ChdBloc extends Bloc<ChdEvent, ChdState> {
   // Shared options/force for every job in the current queue.
   ChdOptions _options = const ChdOptions();
 
+  // Whether create jobs in the current queue produce DVD CHDs instead of CD.
+  bool _createDvd = false;
+
   // Shared native cell the worker isolate writes progress (0..1000) into while
   // it is blocked in the synchronous FFI call. This (main) isolate polls it.
   Pointer<Int32>? _progressCell;
@@ -176,6 +184,7 @@ class ChdBloc extends Bloc<ChdEvent, ChdState> {
       hunkBytes: event.options.hunkBytes,
       force: event.force || event.options.force,
     );
+    _createDvd = event.createDvd;
     _startTime = DateTime.now();
 
     _startJob(_jobs[_currentIndex], emit);
@@ -215,6 +224,7 @@ class ChdBloc extends Bloc<ChdEvent, ChdState> {
           outputPath: job.outputPath,
           outputBinPath: job.outputBinPath,
           options: _options,
+          createDvd: _createDvd,
           progressAddress: _progressCell!.address,
           cancelAddress: _cancelCell!.address,
           sendPort: _receivePort!.sendPort,

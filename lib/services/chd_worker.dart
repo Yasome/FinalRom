@@ -19,6 +19,10 @@ class ChdParams {
   /// Tunable chdman options (codecs, threads, hunk size, force).
   final ChdOptions options;
 
+  /// When true and [action] is [ChdAction.create], the input is written as a
+  /// DVD CHD (chdman createdvd) instead of a CD CHD. Ignored by extract.
+  final bool createDvd;
+
   /// Address of a native `Int32` progress cell the caller allocated and polls,
   /// or 0 for no progress reporting. Native code writes 0..1000 into it.
   final int progressAddress;
@@ -37,6 +41,7 @@ class ChdParams {
     required this.outputPath,
     this.outputBinPath,
     this.options = const ChdOptions(),
+    this.createDvd = false,
     this.progressAddress = 0,
     this.cancelAddress = 0,
     required this.sendPort,
@@ -58,7 +63,9 @@ class ChdWorker {
       final int code;
       switch (params.action) {
         case ChdAction.create:
-          code = chdmanCreateCd(
+          final createChd =
+              params.createDvd ? chdmanCreateDvd : chdmanCreateCd;
+          code = createChd(
             params.inputPath,
             params.outputPath,
             options: params.options,
