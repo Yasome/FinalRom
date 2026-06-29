@@ -668,6 +668,24 @@ abstract class AppLocalizations {
   /// **'Drop .chd file here'**
   String get chdExtractHint;
 
+  /// No description provided for @chdDiscType.
+  ///
+  /// In en, this message translates to:
+  /// **'Disc type'**
+  String get chdDiscType;
+
+  /// No description provided for @chdDiscTypeCd.
+  ///
+  /// In en, this message translates to:
+  /// **'CD'**
+  String get chdDiscTypeCd;
+
+  /// No description provided for @chdDiscTypeDvd.
+  ///
+  /// In en, this message translates to:
+  /// **'DVD'**
+  String get chdDiscTypeDvd;
+
   /// No description provided for @switchMergeTab.
   ///
   /// In en, this message translates to:

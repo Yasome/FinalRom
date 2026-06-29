@@ -314,6 +314,15 @@ class AppLocalizationsAr extends AppLocalizations {
   String get chdExtractHint => 'أفلِت ملف .chd هنا';
 
   @override
+  String get chdDiscType => 'Disc type';
+
+  @override
+  String get chdDiscTypeCd => 'CD';
+
+  @override
+  String get chdDiscTypeDvd => 'DVD';
+
+  @override
   String get switchMergeTab => 'دمج';
 
   @override
