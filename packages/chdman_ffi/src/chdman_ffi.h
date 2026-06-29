@@ -62,6 +62,19 @@ FFI_PLUGIN_EXPORT int chdman_create_cd_ex(const char *input_path,
                                           volatile int *progress_permille,
                                           volatile int *cancel_flag);
 
+/* Creates a DVD CHD at output_chd_path from a raw DVD image (.iso) at
+ * input_path. The input is treated as a flat stream of 2048-byte logical
+ * sectors (chdman createdvd), so its size must be a multiple of 2048. The
+ * options.codecs field accepts the general codec tokens "lzma","zlib","huff",
+ * "flac","zstd","none"; NULL/empty (or any CD token) selects the createdvd
+ * default "lzma,zlib,huff,flac". options may be NULL for all defaults. Returns
+ * CHDMAN_FFI_OK on success. */
+FFI_PLUGIN_EXPORT int chdman_create_dvd_ex(const char *input_path,
+                                           const char *output_chd_path,
+                                           const chdman_options *options,
+                                           volatile int *progress_permille,
+                                           volatile int *cancel_flag);
+
 /* Extracts a CD CHD at input_chd_path back to a .cue/.bin pair. Only the force
  * field of options is used. options may be NULL. Returns CHDMAN_FFI_OK. */
 FFI_PLUGIN_EXPORT int chdman_extract_cd_ex(const char *input_chd_path,
@@ -75,6 +88,10 @@ FFI_PLUGIN_EXPORT int chdman_extract_cd_ex(const char *input_chd_path,
 FFI_PLUGIN_EXPORT int chdman_create_cd(const char *input_path,
                                        const char *output_chd_path,
                                        int force);
+
+FFI_PLUGIN_EXPORT int chdman_create_dvd(const char *input_path,
+                                        const char *output_chd_path,
+                                        int force);
 
 FFI_PLUGIN_EXPORT int chdman_extract_cd(const char *input_chd_path,
                                         const char *output_cue_path,

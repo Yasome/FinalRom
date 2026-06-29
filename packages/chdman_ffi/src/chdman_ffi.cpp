@@ -138,6 +138,31 @@ class chd_cd_compressor : public chd_file_compressor {
   cdrom_file::track_input_info &m_info;
 };
 
+// ======================> chd_rawfile_compressor (ported from chdman.cpp)
+// Feeds a flat byte range of an already-open file to the compressor, with no CD
+// framing. Used by createdvd, where the input ISO is just a stream of 2048-byte
+// logical sectors. The referenced file must outlive this object (its worker
+// threads read through m_file until the compressor is destroyed).
+class chd_rawfile_compressor : public chd_file_compressor {
+ public:
+  chd_rawfile_compressor(util::random_read &file, uint64_t offset, uint64_t maxoffset)
+      : m_file(file), m_offset(offset), m_maxoffset(maxoffset) {}
+
+  virtual uint32_t read_data(void *dest, uint64_t offset, uint32_t length) override {
+    offset += m_offset;
+    if (offset >= m_maxoffset) return 0;
+    if (offset + length > m_maxoffset) length = static_cast<uint32_t>(m_maxoffset - offset);
+    auto const [err, actual] = util::read_at(m_file, offset, dest, length);
+    if (err) throw err;
+    return static_cast<uint32_t>(actual);
+  }
+
+ private:
+  util::random_read &m_file;
+  uint64_t m_offset;
+  uint64_t m_maxoffset;
+};
+
 // Maps a comma-separated chdman codec token list (e.g. "cdlz,cdzl,cdfl") to the
 // chd_codec_type array create() expects. NULL/empty input, or any unrecognized
 // token, leaves the chdman CD default in place. The array is always
@@ -167,6 +192,45 @@ void parse_cd_codecs(const char *codecs, chd_codec_type out[4]) {
     else if (token == "cdzs") type = CHD_CODEC_CD_ZSTD;
     else if (token == "none" || token.empty()) type = CHD_CODEC_NONE;
     else return;  // unknown token: keep the safe default rather than guess
+
+    parsed[count++] = type;
+    if (comma == std::string::npos) break;
+    start = comma + 1;
+  }
+  if (count == 0) return;
+  for (int slot = 0; slot < 4; slot++) out[slot] = (slot < count) ? parsed[slot] : CHD_CODEC_NONE;
+}
+
+// DVD counterpart of parse_cd_codecs using the general (non-CD) codec tokens.
+// The default matches chdman's createdvd, which reuses the hard-disk set
+// "lzma,zlib,huff,flac". Any unrecognized token (e.g. a CD token like "cdlz"
+// passed through from the shared options) leaves that default in place.
+void parse_dvd_codecs(const char *codecs, chd_codec_type out[4]) {
+  out[0] = CHD_CODEC_LZMA;
+  out[1] = CHD_CODEC_ZLIB;
+  out[2] = CHD_CODEC_HUFFMAN;
+  out[3] = CHD_CODEC_FLAC;
+  if (!codecs || !*codecs) return;
+
+  chd_codec_type parsed[4] = {CHD_CODEC_NONE, CHD_CODEC_NONE, CHD_CODEC_NONE, CHD_CODEC_NONE};
+  int count = 0;
+  const std::string list(codecs);
+  size_t start = 0;
+  while (count < 4 && start <= list.size()) {
+    const size_t comma = list.find(',', start);
+    std::string token = list.substr(start, comma == std::string::npos ? std::string::npos : comma - start);
+    const size_t first = token.find_first_not_of(" \t");
+    const size_t last = token.find_last_not_of(" \t");
+    token = (first == std::string::npos) ? std::string() : token.substr(first, last - first + 1);
+
+    chd_codec_type type;
+    if (token == "lzma") type = CHD_CODEC_LZMA;
+    else if (token == "zlib") type = CHD_CODEC_ZLIB;
+    else if (token == "huff") type = CHD_CODEC_HUFFMAN;
+    else if (token == "flac") type = CHD_CODEC_FLAC;
+    else if (token == "zstd") type = CHD_CODEC_ZSTD;
+    else if (token == "none" || token.empty()) type = CHD_CODEC_NONE;
+    else return;  // unknown token (incl. CD tokens): keep the safe default
 
     parsed[count++] = type;
     if (comma == std::string::npos) break;
@@ -290,6 +354,77 @@ FFI_PLUGIN_EXPORT int chdman_create_cd(const char *input_path, const char *outpu
                                        int force) {
   const chdman_options options = {nullptr, 0, 0, force};
   return chdman_create_cd_ex(input_path, output_chd_path, &options, nullptr, nullptr);
+}
+
+FFI_PLUGIN_EXPORT int chdman_create_dvd_ex(const char *input_path, const char *output_chd_path,
+                                           const chdman_options *options,
+                                           volatile int *progress_permille,
+                                           volatile int *cancel_flag) {
+  if (!input_path || !output_chd_path) return CHDMAN_FFI_ERR_INVALID_INPUT;
+  if (!file_exists(input_path)) return CHDMAN_FFI_ERR_OPEN_INPUT;
+  const int force = options ? options->force : 0;
+  if (!force && file_exists(output_chd_path)) return CHDMAN_FFI_ERR_OUTPUT_EXISTS;
+  if (force && file_exists(output_chd_path)) std::remove(output_chd_path);
+
+  if (progress_permille) *progress_permille = 0;
+
+  // Must precede compressor construction so the work queue picks up the cap.
+  apply_num_processors(options ? options->num_processors : 0);
+
+  // A DVD CHD is a flat stream of 2048-byte logical sectors (chdman createdvd):
+  // unit size is fixed at 2048 and the hunk default is two sectors.
+  constexpr uint32_t kDvdSectorSize = 2048;
+
+  // input_file is declared before the compressor so it outlives it: the
+  // compressor's worker threads read through it until the compressor is
+  // destroyed.
+  util::core_file::ptr input_file;
+  try {
+    std::error_condition err = util::core_file::open(input_path, OPEN_FLAG_READ, input_file);
+    if (err) return CHDMAN_FFI_ERR_OPEN_INPUT;
+
+    uint64_t input_size = 0;
+    if (input_file->length(input_size)) return CHDMAN_FFI_ERR_OPEN_INPUT;
+    if (input_size == 0 || (input_size % kDvdSectorSize) != 0)
+      return CHDMAN_FFI_ERR_INVALID_INPUT;
+
+    chd_codec_type compression[4];
+    parse_dvd_codecs(options ? options->codecs : nullptr, compression);
+
+    const int requested_hunk = options ? options->hunk_bytes : 0;
+    uint32_t hunk_size = (requested_hunk > 0) ? static_cast<uint32_t>(requested_hunk)
+                                              : 2 * kDvdSectorSize;
+    // The hunk must be a whole number of sectors; fall back to the default if not.
+    if ((hunk_size % kDvdSectorSize) != 0) hunk_size = 2 * kDvdSectorSize;
+
+    auto chd = std::make_unique<chd_rawfile_compressor>(*input_file, 0, input_size);
+    err = chd->create(output_chd_path, input_size, hunk_size, kDvdSectorSize, compression);
+    if (err) return CHDMAN_FFI_ERR_OPEN_OUTPUT;
+
+    // The "DVD " tag (empty payload) is what marks the CHD as a DVD; emulators
+    // key on its presence via chd_file::check_is_dvd().
+    err = chd->write_metadata(DVD_METADATA_TAG, 0, std::string());
+    if (err) return CHDMAN_FFI_ERR_CODEC;
+
+    const int rc = run_compression(*chd, progress_permille, cancel_flag);
+    // Destroy the compressor first so its worker threads stop (and stop touching
+    // input_file) and the output handle is released before any partial cleanup.
+    chd.reset();
+    if (rc != CHDMAN_FFI_OK) std::remove(output_chd_path);
+    return rc;
+  } catch (const std::error_condition &) {
+    std::remove(output_chd_path);
+    return CHDMAN_FFI_ERR_INTERNAL;
+  } catch (...) {
+    std::remove(output_chd_path);
+    return CHDMAN_FFI_ERR_INTERNAL;
+  }
+}
+
+FFI_PLUGIN_EXPORT int chdman_create_dvd(const char *input_path, const char *output_chd_path,
+                                        int force) {
+  const chdman_options options = {nullptr, 0, 0, force};
+  return chdman_create_dvd_ex(input_path, output_chd_path, &options, nullptr, nullptr);
 }
 
 FFI_PLUGIN_EXPORT int chdman_extract_cd_ex(const char *input_chd_path, const char *output_cue_path,
@@ -453,6 +588,27 @@ FFI_PLUGIN_EXPORT int chdman_extract_cd_ex(const char *input_chd_path, const cha
 FFI_PLUGIN_EXPORT int chdman_create_cd(const char *input_path,
                                        const char *output_chd_path,
                                        int force) {
+  (void)input_path;
+  (void)output_chd_path;
+  (void)force;
+  return CHDMAN_FFI_ERR_LIB_UNAVAILABLE;
+}
+
+FFI_PLUGIN_EXPORT int chdman_create_dvd_ex(const char *input_path, const char *output_chd_path,
+                                           const chdman_options *options,
+                                           volatile int *progress_permille,
+                                           volatile int *cancel_flag) {
+  (void)input_path;
+  (void)output_chd_path;
+  (void)options;
+  (void)progress_permille;
+  (void)cancel_flag;
+  return CHDMAN_FFI_ERR_LIB_UNAVAILABLE;
+}
+
+FFI_PLUGIN_EXPORT int chdman_create_dvd(const char *input_path,
+                                        const char *output_chd_path,
+                                        int force) {
   (void)input_path;
   (void)output_chd_path;
   (void)force;
