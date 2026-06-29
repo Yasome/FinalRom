@@ -5,6 +5,7 @@ import 'ui/three_ds_tab.dart';
 import 'ui/patcher_tab.dart';
 import 'ui/hasher_tab.dart';
 import 'ui/chd_tab.dart';
+import 'ui/archive_tab.dart';
 import 'ui/switch_tab.dart';
 import 'ui/settings_screen.dart';
 import 'ui/nsz_benchmark_screen.dart';
@@ -49,6 +50,14 @@ final appRouter = GoRouter(
             ),
           ],
         ),
+        // StatefulShellBranch(
+        //   routes: [
+        //     GoRoute(
+        //       path: '/archive',
+        //       builder: (context, state) => const ArchiveTab(),
+        //     ),
+        //   ],
+        // ),
         StatefulShellBranch(
           routes: [
             GoRoute(

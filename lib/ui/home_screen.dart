@@ -69,6 +69,11 @@ class HomeScreen extends StatelessWidget {
                           selectedIcon: const Icon(Icons.album),
                           label: Text(loc.tabChd),
                         ),
+                        // NavigationRailDestination(
+                        //   icon: const Icon(Icons.folder_zip_outlined),
+                        //   selectedIcon: const Icon(Icons.folder_zip),
+                        //   label: Text(loc.tabArchive),
+                        // ),
                         NavigationRailDestination(
                           icon: const Icon(Icons.videogame_asset_outlined),
                           selectedIcon: const Icon(Icons.videogame_asset),
@@ -107,6 +112,11 @@ class HomeScreen extends StatelessWidget {
                       selectedIcon: const Icon(Icons.album),
                       label: loc.tabChd,
                     ),
+                    // NavigationDestination(
+                    //   icon: const Icon(Icons.folder_zip_outlined),
+                    //   selectedIcon: const Icon(Icons.folder_zip),
+                    //   label: loc.tabArchive,
+                    // ),
                     NavigationDestination(
                       icon: const Icon(Icons.videogame_asset_outlined),
                       selectedIcon: const Icon(Icons.videogame_asset),
