@@ -9,6 +9,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.0.9"
+  archive_ffi:
+    dependency: "direct main"
+    description:
+      path: "packages/archive_ffi"
+      relative: true
+    source: path
+    version: "0.0.1"
   args:
     dependency: transitive
     description:

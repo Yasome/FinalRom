@@ -45,6 +45,10 @@ dependencies:
   # FFI bindings to libzstd (streaming), used by the Switch NSZ feature.
   zstd_ffi:
     path: packages/zstd_ffi
+  # FFI bindings to libarchive, the unified backend for the Archive tab
+  # (zip/7z/gzip/zstd). Builds as a stub until the sources are vendored.
+  archive_ffi:
+    path: packages/archive_ffi
   go_router: ^17.3.0
   url_launcher: ^6.3.2
   font_awesome_flutter: ^11.0.0
