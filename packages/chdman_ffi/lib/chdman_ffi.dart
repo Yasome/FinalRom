@@ -47,6 +47,21 @@ typedef _ChdmanCreateCdExDart = int Function(
   Pointer<Int32> cancelFlag,
 );
 
+typedef _ChdmanCreateDvdExNative = Int32 Function(
+  Pointer<Utf8> inputPath,
+  Pointer<Utf8> outputChdPath,
+  Pointer<_ChdmanOptionsNative> options,
+  Pointer<Int32> progressPermille,
+  Pointer<Int32> cancelFlag,
+);
+typedef _ChdmanCreateDvdExDart = int Function(
+  Pointer<Utf8> inputPath,
+  Pointer<Utf8> outputChdPath,
+  Pointer<_ChdmanOptionsNative> options,
+  Pointer<Int32> progressPermille,
+  Pointer<Int32> cancelFlag,
+);
+
 typedef _ChdmanExtractCdExNative = Int32 Function(
   Pointer<Utf8> inputChdPath,
   Pointer<Utf8> outputCuePath,
@@ -67,6 +82,10 @@ typedef _ChdmanExtractCdExDart = int Function(
 final _ChdmanCreateCdExDart _chdmanCreateCdEx = _dylib
     .lookupFunction<_ChdmanCreateCdExNative, _ChdmanCreateCdExDart>(
         'chdman_create_cd_ex');
+
+final _ChdmanCreateDvdExDart _chdmanCreateDvdEx = _dylib
+    .lookupFunction<_ChdmanCreateDvdExNative, _ChdmanCreateDvdExDart>(
+        'chdman_create_dvd_ex');
 
 final _ChdmanExtractCdExDart _chdmanExtractCdEx = _dylib
     .lookupFunction<_ChdmanExtractCdExNative, _ChdmanExtractCdExDart>(
@@ -152,6 +171,35 @@ int chdmanCreateCd(
   final optionsPtr = _allocOptions(options);
   try {
     return _chdmanCreateCdEx(
+        inputPtr, outputPtr, optionsPtr, progress ?? nullptr, cancel ?? nullptr);
+  } finally {
+    malloc.free(inputPtr);
+    malloc.free(outputPtr);
+    _freeOptions(optionsPtr);
+  }
+}
+
+/// Creates a DVD CHD at [outputChdPath] from the raw DVD image at [inputPath]
+/// (`.iso`). The input is treated as a flat stream of 2048-byte logical sectors,
+/// so its size must be a multiple of 2048. [ChdOptions.codecs] takes the general
+/// codec tokens (`lzma`/`zlib`/`huff`/`flac`/`zstd`/`none`); null/empty (or a CD
+/// token) selects the createdvd default `lzma,zlib,huff,flac`. Returns a native
+/// result code (see [ChdmanResult]).
+///
+/// See [chdmanCreateCd] for the [progress]/[cancel] contract. Run off the UI
+/// isolate.
+int chdmanCreateDvd(
+  String inputPath,
+  String outputChdPath, {
+  ChdOptions options = const ChdOptions(),
+  Pointer<Int32>? progress,
+  Pointer<Int32>? cancel,
+}) {
+  final inputPtr = inputPath.toNativeUtf8();
+  final outputPtr = outputChdPath.toNativeUtf8();
+  final optionsPtr = _allocOptions(options);
+  try {
+    return _chdmanCreateDvdEx(
         inputPtr, outputPtr, optionsPtr, progress ?? nullptr, cancel ?? nullptr);
   } finally {
     malloc.free(inputPtr);
