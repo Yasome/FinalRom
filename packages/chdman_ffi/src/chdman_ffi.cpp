@@ -589,6 +589,123 @@ FFI_PLUGIN_EXPORT int chdman_extract_cd(const char *input_chd_path, const char *
                               nullptr);
 }
 
+FFI_PLUGIN_EXPORT int chdman_extract_dvd_ex(const char *input_chd_path, const char *output_iso_path,
+                                            const chdman_options *options,
+                                            volatile int *progress_permille,
+                                            volatile int *cancel_flag) {
+  g_last_error.clear();
+  if (!input_chd_path || !output_iso_path) return CHDMAN_FFI_ERR_INVALID_INPUT;
+  if (!file_exists(input_chd_path)) return CHDMAN_FFI_ERR_OPEN_INPUT;
+  const int force = options ? options->force : 0;
+  if (!force && file_exists(output_iso_path)) return CHDMAN_FFI_ERR_OUTPUT_EXISTS;
+
+  if (progress_permille) *progress_permille = 0;
+
+  // Declared before the try so it is still in scope (and resettable) in the
+  // catch/cleanup paths that delete a partial .iso.
+  util::core_file::ptr iso_file;
+  try {
+    chd_file input_chd;
+    std::error_condition err = input_chd.open(input_chd_path, false);
+    if (err) { set_last_error(err); return CHDMAN_FFI_ERR_OPEN_INPUT; }
+
+    // A DVD CHD is read as a flat byte stream; running this on a CD CHD would
+    // produce a garbled image. The caller routes by type, but guard anyway.
+    if (input_chd.check_is_dvd()) {
+      set_last_error("input is not a DVD CHD");
+      return CHDMAN_FFI_ERR_INVALID_INPUT;
+    }
+
+    err = util::core_file::open(output_iso_path, OPEN_FLAG_WRITE | OPEN_FLAG_CREATE, iso_file);
+    if (err) { set_last_error(err); return CHDMAN_FFI_ERR_OPEN_OUTPUT; }
+
+    const uint64_t total_bytes = input_chd.logical_bytes();
+    const uint32_t hunk_size = input_chd.hunk_bytes();
+    if (hunk_size == 0) {
+      set_last_error("CHD reports a zero hunk size");
+      return CHDMAN_FFI_ERR_INVALID_INPUT;
+    }
+
+    // Read raw via chd_file (hunk-size agnostic), not dvdrom_file, which would
+    // reject our 4096-byte hunks. One hunk per read keeps the decode cache hot.
+    std::vector<uint8_t> buffer(hunk_size);
+    uint64_t offset = 0;
+    int result = CHDMAN_FFI_OK;
+    while (offset < total_bytes) {
+      if (cancel_flag && *cancel_flag) { result = CHDMAN_FFI_ERR_CANCELLED; break; }
+      const uint64_t remaining = total_bytes - offset;
+      const uint32_t chunk =
+          (remaining < hunk_size) ? static_cast<uint32_t>(remaining) : hunk_size;
+
+      err = input_chd.read_bytes(offset, buffer.data(), chunk);
+      if (err) { set_last_error(err); result = CHDMAN_FFI_ERR_CODEC; break; }
+
+      auto const [writerr, written] = util::write(*iso_file, buffer.data(), chunk);
+      if (writerr || written != chunk) {
+        set_last_error("failed to write the output image");
+        result = CHDMAN_FFI_ERR_OPEN_OUTPUT;
+        break;
+      }
+
+      offset += chunk;
+      if (progress_permille) *progress_permille = static_cast<int>(offset * 1000 / total_bytes);
+    }
+
+    if (result != CHDMAN_FFI_OK) {
+      // Release the handle before deleting the partial/cancelled .iso.
+      iso_file.reset();
+      std::remove(output_iso_path);
+      return result;
+    }
+
+    if (progress_permille) *progress_permille = 1000;
+    return CHDMAN_FFI_OK;
+  } catch (const std::error_condition &condition) {
+    set_last_error(condition);
+    iso_file.reset();
+    std::remove(output_iso_path);
+    return CHDMAN_FFI_ERR_INTERNAL;
+  } catch (const std::exception &ex) {
+    set_last_error(ex.what());
+    iso_file.reset();
+    std::remove(output_iso_path);
+    return CHDMAN_FFI_ERR_INTERNAL;
+  } catch (...) {
+    set_last_error("unknown native exception");
+    iso_file.reset();
+    std::remove(output_iso_path);
+    return CHDMAN_FFI_ERR_INTERNAL;
+  }
+}
+
+FFI_PLUGIN_EXPORT int chdman_extract_dvd(const char *input_chd_path, const char *output_iso_path,
+                                         int force) {
+  const chdman_options options = {nullptr, 0, 0, force};
+  return chdman_extract_dvd_ex(input_chd_path, output_iso_path, &options, nullptr, nullptr);
+}
+
+FFI_PLUGIN_EXPORT int chdman_chd_is_dvd(const char *input_chd_path) {
+  g_last_error.clear();
+  if (!input_chd_path) return CHDMAN_FFI_ERR_INVALID_INPUT;
+  if (!file_exists(input_chd_path)) return CHDMAN_FFI_ERR_OPEN_INPUT;
+  try {
+    chd_file input_chd;
+    std::error_condition err = input_chd.open(input_chd_path, false);
+    if (err) { set_last_error(err); return CHDMAN_FFI_ERR_OPEN_INPUT; }
+    // check_is_dvd() yields no error when the "DVD " tag is present.
+    return input_chd.check_is_dvd() ? 0 : 1;
+  } catch (const std::error_condition &condition) {
+    set_last_error(condition);
+    return CHDMAN_FFI_ERR_INTERNAL;
+  } catch (const std::exception &ex) {
+    set_last_error(ex.what());
+    return CHDMAN_FFI_ERR_INTERNAL;
+  } catch (...) {
+    set_last_error("unknown native exception");
+    return CHDMAN_FFI_ERR_INTERNAL;
+  }
+}
+
 FFI_PLUGIN_EXPORT const char *chdman_last_error(void) { return g_last_error.c_str(); }
 
 #else /* !CHDMAN_AVAILABLE */
@@ -657,6 +774,32 @@ FFI_PLUGIN_EXPORT int chdman_extract_cd(const char *input_chd_path,
   (void)output_cue_path;
   (void)output_bin_path;
   (void)force;
+  return CHDMAN_FFI_ERR_LIB_UNAVAILABLE;
+}
+
+FFI_PLUGIN_EXPORT int chdman_extract_dvd_ex(const char *input_chd_path, const char *output_iso_path,
+                                            const chdman_options *options,
+                                            volatile int *progress_permille,
+                                            volatile int *cancel_flag) {
+  (void)input_chd_path;
+  (void)output_iso_path;
+  (void)options;
+  (void)progress_permille;
+  (void)cancel_flag;
+  return CHDMAN_FFI_ERR_LIB_UNAVAILABLE;
+}
+
+FFI_PLUGIN_EXPORT int chdman_extract_dvd(const char *input_chd_path,
+                                         const char *output_iso_path,
+                                         int force) {
+  (void)input_chd_path;
+  (void)output_iso_path;
+  (void)force;
+  return CHDMAN_FFI_ERR_LIB_UNAVAILABLE;
+}
+
+FFI_PLUGIN_EXPORT int chdman_chd_is_dvd(const char *input_chd_path) {
+  (void)input_chd_path;
   return CHDMAN_FFI_ERR_LIB_UNAVAILABLE;
 }
 

@@ -84,6 +84,21 @@ FFI_PLUGIN_EXPORT int chdman_extract_cd_ex(const char *input_chd_path,
                                            volatile int *progress_permille,
                                            volatile int *cancel_flag);
 
+/* Extracts a DVD CHD at input_chd_path back to a raw .iso at output_iso_path,
+ * reading the CHD as a flat byte stream (chdman extractdvd / do_extract_raw).
+ * Fails with CHDMAN_FFI_ERR_INVALID_INPUT if the CHD is not a DVD CHD. Only the
+ * force field of options is used. options may be NULL. Returns CHDMAN_FFI_OK. */
+FFI_PLUGIN_EXPORT int chdman_extract_dvd_ex(const char *input_chd_path,
+                                            const char *output_iso_path,
+                                            const chdman_options *options,
+                                            volatile int *progress_permille,
+                                            volatile int *cancel_flag);
+
+/* Reports whether the CHD at input_chd_path is a DVD CHD, so callers can route
+ * extraction to the right path. Returns 1 for a DVD CHD, 0 for any other CHD
+ * (e.g. CD), or a negative CHDMAN_FFI_ERR_* if the file cannot be opened. */
+FFI_PLUGIN_EXPORT int chdman_chd_is_dvd(const char *input_chd_path);
+
 /* Back-compatible wrappers using all defaults and no progress reporting. */
 FFI_PLUGIN_EXPORT int chdman_create_cd(const char *input_path,
                                        const char *output_chd_path,
@@ -97,6 +112,10 @@ FFI_PLUGIN_EXPORT int chdman_extract_cd(const char *input_chd_path,
                                         const char *output_cue_path,
                                         const char *output_bin_path,
                                         int force);
+
+FFI_PLUGIN_EXPORT int chdman_extract_dvd(const char *input_chd_path,
+                                         const char *output_iso_path,
+                                         int force);
 
 /* Returns a human-readable detail for the most recent failed chdman call on the
  * calling thread (empty string if none / not applicable). The returned pointer
