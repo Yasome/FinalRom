@@ -1,8 +1,9 @@
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
-import 'package:crypto/crypto.dart';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:final_rom/io_tuning.dart';
+import 'native_hasher.dart';
 
 class HasherParams {
   final String filePath;
@@ -29,28 +30,98 @@ class HasherResult {
   });
 }
 
-/// CRC32 (IEEE 802.3) lookup table, built once per isolate instead of on every
-/// hash call.
 final List<int> _crc32Table = _makeCrcTable();
 
 class HasherWorker {
-  /// Reading in large blocks (rather than the ~64 KB chunks `File.openRead`
-  /// yields) cuts per-chunk overhead and lets each hash process bigger slices,
-  /// which is the dominant cost when hashing on mobile. See [hashReadBufferSize].
   static const int _readBufferSize = hashReadBufferSize;
 
   static Future<void> runHasher(HasherParams params) async {
+    try {
+      final result = NativeHasher.supported
+          ? await _runWithNative(params.filePath)
+          : await _runAllInDart(params.filePath);
+      params.sendPort.send(result);
+    } catch (e) {
+      params.sendPort.send(HasherResult(success: false, error: e.toString()));
+    }
+  }
+
+  static Future<HasherResult> _runWithNative(String filePath) async {
+    final nativeFuture = NativeHasher.computeConcurrently(
+      filePath,
+      {NativeHashAlgo.md5, NativeHashAlgo.sha1, NativeHashAlgo.sha256},
+    );
+    final crc32Future = _hashInDart(filePath, crc32: true);
+
+    final native = await nativeFuture;
+    final crc32 = await crc32Future;
+
+    var md5Hash = native[NativeHashAlgo.md5];
+    var sha1Hash = native[NativeHashAlgo.sha1];
+    var sha256Hash = native[NativeHashAlgo.sha256];
+
+    if (md5Hash == null || sha1Hash == null || sha256Hash == null) {
+      final fallback = await _hashInDart(
+        filePath,
+        md5: md5Hash == null,
+        sha1: sha1Hash == null,
+        sha256: sha256Hash == null,
+      );
+      md5Hash ??= fallback.md5;
+      sha1Hash ??= fallback.sha1;
+      sha256Hash ??= fallback.sha256;
+    }
+
+    return HasherResult(
+      success: true,
+      md5Hash: md5Hash,
+      sha1Hash: sha1Hash,
+      sha256Hash: sha256Hash,
+      crc32Hash: crc32.crc32,
+    );
+  }
+
+  static Future<HasherResult> _runAllInDart(String filePath) async {
+    final hashes = await _hashInDart(
+      filePath,
+      md5: true,
+      sha1: true,
+      sha256: true,
+      crc32: true,
+    );
+    return HasherResult(
+      success: true,
+      md5Hash: hashes.md5,
+      sha1Hash: hashes.sha1,
+      sha256Hash: hashes.sha256,
+      crc32Hash: hashes.crc32,
+    );
+  }
+
+  static Future<_DartHashes> _hashInDart(
+    String filePath, {
+    bool md5 = false,
+    bool sha1 = false,
+    bool sha256 = false,
+    bool crc32 = false,
+  }) async {
     RandomAccessFile? file;
     try {
-      file = await File(params.filePath).open(mode: FileMode.read);
+      file = await File(filePath).open(mode: FileMode.read);
 
-      final md5Output = AccumulatorSink<Digest>();
-      final sha1Output = AccumulatorSink<Digest>();
-      final sha256Output = AccumulatorSink<Digest>();
+      final md5Output = md5 ? AccumulatorSink<crypto.Digest>() : null;
+      final sha1Output = sha1 ? AccumulatorSink<crypto.Digest>() : null;
+      final sha256Output = sha256 ? AccumulatorSink<crypto.Digest>() : null;
 
-      final md5Input = md5.startChunkedConversion(md5Output);
-      final sha1Input = sha1.startChunkedConversion(sha1Output);
-      final sha256Input = sha256.startChunkedConversion(sha256Output);
+      final md5Input = md5Output == null
+          ? null
+          : crypto.md5.startChunkedConversion(md5Output);
+      final sha1Input = sha1Output == null
+          ? null
+          : crypto.sha1.startChunkedConversion(sha1Output);
+      final sha256Input = sha256Output == null
+          ? null
+          : crypto.sha256.startChunkedConversion(sha256Output);
 
       var crc32Value = 0xFFFFFFFF;
       final buffer = Uint8List(_readBufferSize);
@@ -59,40 +130,52 @@ class HasherWorker {
         final read = await file.readInto(buffer);
         if (read <= 0) break;
 
-        // Each hash consumes the slice synchronously inside add(), so reusing
-        // the buffer for the next read is safe.
-        final chunk =
-            read == buffer.length ? buffer : Uint8List.sublistView(buffer, 0, read);
-        md5Input.add(chunk);
-        sha1Input.add(chunk);
-        sha256Input.add(chunk);
+        // Each hash consumes the slice synchronously, so reusing the buffer for
+        // the next read is safe.
+        final chunk = read == buffer.length
+            ? buffer
+            : Uint8List.sublistView(buffer, 0, read);
+        md5Input?.add(chunk);
+        sha1Input?.add(chunk);
+        sha256Input?.add(chunk);
 
-        for (var i = 0; i < read; i++) {
-          crc32Value =
-              _crc32Table[(crc32Value ^ buffer[i]) & 0xFF] ^ (crc32Value >>> 8);
+        if (crc32) {
+          for (var i = 0; i < read; i++) {
+            crc32Value =
+                _crc32Table[(crc32Value ^ buffer[i]) & 0xFF] ^ (crc32Value >>> 8);
+          }
         }
       }
 
-      md5Input.close();
-      sha1Input.close();
-      sha256Input.close();
+      md5Input?.close();
+      sha1Input?.close();
+      sha256Input?.close();
 
-      crc32Value ^= 0xFFFFFFFF;
-      final crc32Hash = crc32Value.toRadixString(16).padLeft(8, '0').toUpperCase();
+      String? crc32Hash;
+      if (crc32) {
+        crc32Value ^= 0xFFFFFFFF;
+        crc32Hash = crc32Value.toRadixString(16).padLeft(8, '0').toUpperCase();
+      }
 
-      params.sendPort.send(HasherResult(
-        success: true,
-        md5Hash: md5Output.events.single.toString(),
-        sha1Hash: sha1Output.events.single.toString(),
-        sha256Hash: sha256Output.events.single.toString(),
-        crc32Hash: crc32Hash,
-      ));
-    } catch (e) {
-      params.sendPort.send(HasherResult(success: false, error: e.toString()));
+      return _DartHashes(
+        md5: md5Output?.events.single.toString(),
+        sha1: sha1Output?.events.single.toString(),
+        sha256: sha256Output?.events.single.toString(),
+        crc32: crc32Hash,
+      );
     } finally {
       await file?.close();
     }
   }
+}
+
+class _DartHashes {
+  final String? md5;
+  final String? sha1;
+  final String? sha256;
+  final String? crc32;
+
+  _DartHashes({this.md5, this.sha1, this.sha256, this.crc32});
 }
 
 List<int> _makeCrcTable() {
