@@ -214,7 +214,10 @@ class AppLocalizationsAr extends AppLocalizations {
   String get dragDropHintBatch => 'أفلِت ملفات 3DS ROM هنا';
 
   @override
-  String get dragDropHintPatch => 'أفلِت ملف ROM أو رقعة هنا';
+  String get dragDropHintRom => 'أفلِت ملف ROM هنا';
+
+  @override
+  String get dragDropHintPatch => 'أفلِت ملف الرقعة هنا';
 
   @override
   String get dragDropHintHash => 'أفلِت ملفًا هنا لحساب التجزئة';

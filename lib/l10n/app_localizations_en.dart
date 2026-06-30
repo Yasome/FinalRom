@@ -214,7 +214,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dragDropHintBatch => 'Drop .3ds ROM files here';
 
   @override
-  String get dragDropHintPatch => 'Drop ROM or Patch file here';
+  String get dragDropHintRom => 'Drop ROM file here';
+
+  @override
+  String get dragDropHintPatch => 'Drop patch file here';
 
   @override
   String get dragDropHintHash => 'Drop file here to hash';

@@ -211,7 +211,10 @@ class AppLocalizationsJa extends AppLocalizations {
   String get dragDropHintBatch => '.3ds ROM ファイルをここにドロップ';
 
   @override
-  String get dragDropHintPatch => 'ROM またはパッチファイルをここにドロップ';
+  String get dragDropHintRom => 'ROM ファイルをここにドロップ';
+
+  @override
+  String get dragDropHintPatch => 'パッチファイルをここにドロップ';
 
   @override
   String get dragDropHintHash => 'ハッシュを計算するファイルをここにドロップ';

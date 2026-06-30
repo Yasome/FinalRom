@@ -476,10 +476,16 @@ abstract class AppLocalizations {
   /// **'Drop .3ds ROM files here'**
   String get dragDropHintBatch;
 
+  /// No description provided for @dragDropHintRom.
+  ///
+  /// In en, this message translates to:
+  /// **'Drop ROM file here'**
+  String get dragDropHintRom;
+
   /// No description provided for @dragDropHintPatch.
   ///
   /// In en, this message translates to:
-  /// **'Drop ROM or Patch file here'**
+  /// **'Drop patch file here'**
   String get dragDropHintPatch;
 
   /// No description provided for @dragDropHintHash.

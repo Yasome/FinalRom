@@ -215,7 +215,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get dragDropHintBatch => 'Déposez ici les fichiers ROM .3ds';
 
   @override
-  String get dragDropHintPatch => 'Déposez ici un fichier ROM ou de correctif';
+  String get dragDropHintRom => 'Déposez ici le fichier ROM';
+
+  @override
+  String get dragDropHintPatch => 'Déposez ici le fichier de correctif';
 
   @override
   String get dragDropHintHash => 'Déposez ici un fichier à hacher';

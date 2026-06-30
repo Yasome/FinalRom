@@ -252,6 +252,7 @@ class _DragDropTargetState extends State<DragDropTarget> {
         }
       },
       child: Stack(
+        fit: StackFit.passthrough,
         children: [
           widget.child,
           if (_isDragging)
@@ -262,60 +263,95 @@ class _DragDropTargetState extends State<DragDropTarget> {
                 child: Container(
                   // ignore: deprecated_member_use
                   color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.92),
-                  child: Center(
-                    child: Container(
-                      margin: const EdgeInsets.all(24.0),
-                      padding: const EdgeInsets.all(24.0),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surface,
-                        borderRadius: BorderRadius.circular(24.0),
-                        border: Border.all(
-                          color: Theme.of(context).colorScheme.primary,
-                          width: 2.0,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final compact = constraints.maxHeight < 160.0;
+                      return Center(
+                        child: Container(
+                          margin: EdgeInsets.all(compact ? 8.0 : 24.0),
+                          padding: EdgeInsets.all(compact ? 12.0 : 24.0),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.surface,
+                            borderRadius: BorderRadius.circular(compact ? 12.0 : 24.0),
+                            border: Border.all(
+                              color: Theme.of(context).colorScheme.primary,
+                              width: 2.0,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                // ignore: deprecated_member_use
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 16.0,
+                                spreadRadius: 2.0,
+                              ),
+                            ],
+                          ),
+                          child: compact
+                              ? _buildCompactHint(context)
+                              : _buildFullHint(context, loc),
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            // ignore: deprecated_member_use
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 16.0,
-                            spreadRadius: 2.0,
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.upload_file_rounded,
-                            size: 64.0,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                          const SizedBox(height: 16.0),
-                          Text(
-                            widget.hintText,
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Theme.of(context).colorScheme.onSurface,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 8.0),
-                          Text(
-                            loc.dragDropSubtext,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    ),
+                      );
+                    },
                   ),
                 ),
               ),
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildFullHint(BuildContext context, AppLocalizations loc) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.upload_file_rounded,
+          size: 64.0,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+        const SizedBox(height: 16.0),
+        Text(
+          widget.hintText,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8.0),
+        Text(
+          loc.dragDropSubtext,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCompactHint(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.upload_file_rounded,
+          size: 24.0,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+        const SizedBox(width: 8.0),
+        Flexible(
+          child: Text(
+            widget.hintText,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ],
     );
   }
 }

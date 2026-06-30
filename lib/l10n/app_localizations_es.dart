@@ -216,7 +216,10 @@ class AppLocalizationsEs extends AppLocalizations {
   String get dragDropHintBatch => 'Suelta aquí los archivos ROM .3ds';
 
   @override
-  String get dragDropHintPatch => 'Suelta aquí un archivo ROM o de parche';
+  String get dragDropHintRom => 'Suelta aquí el archivo ROM';
+
+  @override
+  String get dragDropHintPatch => 'Suelta aquí el archivo de parche';
 
   @override
   String get dragDropHintHash => 'Suelta aquí un archivo para calcular el hash';
