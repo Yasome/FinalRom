@@ -316,7 +316,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get chdExtractHint => 'Suelta aquí un archivo .chd';
 
   @override
-  String get chdDiscType => 'Disc type';
+  String get chdDiscType => 'Tipo de disco';
 
   @override
   String get chdDiscTypeCd => 'CD';

@@ -310,7 +310,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get chdExtractHint => '.chd ファイルをここにドロップ';
 
   @override
-  String get chdDiscType => 'Disc type';
+  String get chdDiscType => 'ディスクの種類';
 
   @override
   String get chdDiscTypeCd => 'CD';
