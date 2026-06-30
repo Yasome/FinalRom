@@ -20,18 +20,25 @@ class ChdJob extends Equatable {
   /// it is the `.cue` output.
   final String outputPath;
 
-  /// The `.bin` output, used only for [ChdAction.extract].
+  /// The `.bin` output, used only for a CD [ChdAction.extract].
   final String? outputBinPath;
+
+  /// For [ChdAction.extract], true when the input CHD is a DVD CHD (detected up
+  /// front via [chdmanChdIsDvd]); it is then extracted to the single `.iso` at
+  /// [outputPath]. Always false for create.
+  final bool sourceIsDvd;
 
   const ChdJob({
     required this.action,
     required this.inputPath,
     required this.outputPath,
     this.outputBinPath,
+    this.sourceIsDvd = false,
   });
 
   @override
-  List<Object?> get props => [action, inputPath, outputPath, outputBinPath];
+  List<Object?> get props =>
+      [action, inputPath, outputPath, outputBinPath, sourceIsDvd];
 }
 
 // --- Events ---
@@ -199,7 +206,7 @@ class ChdBloc extends Bloc<ChdEvent, ChdState> {
   void _startJob(ChdJob job, Emitter<ChdState> emit) {
     final actionLabel = job.action == ChdAction.create
         ? 'create (${_createDvd ? 'DVD' : 'CD'})'
-        : job.action.name;
+        : 'extract (${job.sourceIsDvd ? 'DVD' : 'CD'})';
     _logger.info('CHD job ${_currentIndex + 1}/${_jobs.length}: '
         'action=$actionLabel, path=${job.inputPath}');
     _cancelRequested = false;
@@ -232,6 +239,7 @@ class ChdBloc extends Bloc<ChdEvent, ChdState> {
           outputBinPath: job.outputBinPath,
           options: _options,
           createDvd: _createDvd,
+          sourceIsDvd: job.sourceIsDvd,
           progressAddress: _progressCell!.address,
           cancelAddress: _cancelCell!.address,
           sendPort: _receivePort!.sendPort,
