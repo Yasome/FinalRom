@@ -162,7 +162,11 @@ class ChdBloc extends Bloc<ChdEvent, ChdState> {
 
   Future<void> _onStartChd(StartChd event, Emitter<ChdState> emit) async {
     if (event.jobs.isEmpty) return;
-    _logger.info('Starting CHD queue: ${event.jobs.length} job(s).');
+    final queueDiscNote = event.jobs.first.action == ChdAction.create
+        ? ' as ${event.createDvd ? 'DVD' : 'CD'}'
+        : '';
+    _logger.info(
+        'Starting CHD queue: ${event.jobs.length} job(s)$queueDiscNote.');
     // A previous operation must have finished before a new one starts; the UI
     // gates this. Defensively, if one is somehow still in flight, signal it to
     // cancel and drop our references — the worker frees nothing, so the cells
@@ -193,8 +197,11 @@ class ChdBloc extends Bloc<ChdEvent, ChdState> {
   /// Spawns the worker for a single job and starts polling its progress. Mirrors
   /// the original single-file start path; called once per file in the queue.
   void _startJob(ChdJob job, Emitter<ChdState> emit) {
+    final actionLabel = job.action == ChdAction.create
+        ? 'create (${_createDvd ? 'DVD' : 'CD'})'
+        : job.action.name;
     _logger.info('CHD job ${_currentIndex + 1}/${_jobs.length}: '
-        'action=${job.action.name}, path=${job.inputPath}');
+        'action=$actionLabel, path=${job.inputPath}');
     _cancelRequested = false;
     emit(ChdProgress(0, _position));
 

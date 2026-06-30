@@ -98,6 +98,13 @@ FFI_PLUGIN_EXPORT int chdman_extract_cd(const char *input_chd_path,
                                         const char *output_bin_path,
                                         int force);
 
+/* Returns a human-readable detail for the most recent failed chdman call on the
+ * calling thread (empty string if none / not applicable). The returned pointer
+ * is owned by the library and only valid until the next chdman call on the same
+ * thread, so copy it immediately. Intended to be read right after a non-OK
+ * return to enrich the generic error code with the real reason. */
+FFI_PLUGIN_EXPORT const char *chdman_last_error(void);
+
 #ifdef __cplusplus
 }
 #endif

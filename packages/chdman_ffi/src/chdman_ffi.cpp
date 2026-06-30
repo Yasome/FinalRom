@@ -32,6 +32,17 @@
 
 namespace {
 
+// Human-readable detail for the most recent failed call on the calling thread,
+// so the Dart side can surface the real reason instead of a bare error code.
+// Cleared at the start of each entry point and set right before a failure
+// return; read via chdman_last_error() on the same thread once the call returns.
+thread_local std::string g_last_error;
+
+void set_last_error(const std::string &message) { g_last_error = message; }
+void set_last_error(const std::error_condition &condition) {
+  g_last_error = condition.message();
+}
+
 bool file_exists(const char *path) {
   if (!path) return false;
   FILE *probe = std::fopen(path, "rb");
@@ -265,6 +276,7 @@ int run_compression(chd_file_compressor &chd, volatile int *progress_permille,
     if (progress_permille) *progress_permille = static_cast<int>(complete * 1000.0 + 0.5);
   }
   if (!err && progress_permille) *progress_permille = 1000;
+  if (err) set_last_error(err);
   return err ? CHDMAN_FFI_ERR_CODEC : CHDMAN_FFI_OK;
 }
 
@@ -294,6 +306,7 @@ FFI_PLUGIN_EXPORT int chdman_create_cd_ex(const char *input_path, const char *ou
                                           const chdman_options *options,
                                           volatile int *progress_permille,
                                           volatile int *cancel_flag) {
+  g_last_error.clear();
   if (!input_path || !output_chd_path) return CHDMAN_FFI_ERR_INVALID_INPUT;
   if (!file_exists(input_path)) return CHDMAN_FFI_ERR_OPEN_INPUT;
   const int force = options ? options->force : 0;
@@ -330,10 +343,10 @@ FFI_PLUGIN_EXPORT int chdman_create_cd_ex(const char *input_path, const char *ou
     auto chd = std::make_unique<chd_cd_compressor>(toc, track_info);
     err = chd->create(output_chd_path, uint64_t(totalsectors) * cdrom_file::FRAME_SIZE, hunk_size,
                       cdrom_file::FRAME_SIZE, compression);
-    if (err) return CHDMAN_FFI_ERR_OPEN_OUTPUT;
+    if (err) { set_last_error(err); return CHDMAN_FFI_ERR_OPEN_OUTPUT; }
 
     err = cdrom_file::write_metadata(chd.get(), toc);
-    if (err) return CHDMAN_FFI_ERR_CODEC;
+    if (err) { set_last_error(err); return CHDMAN_FFI_ERR_CODEC; }
 
     const int rc = run_compression(*chd, progress_permille, cancel_flag);
     // Destroy the compressor first so its worker threads stop and the output
@@ -341,10 +354,16 @@ FFI_PLUGIN_EXPORT int chdman_create_cd_ex(const char *input_path, const char *ou
     chd.reset();
     if (rc != CHDMAN_FFI_OK) std::remove(output_chd_path);
     return rc;
-  } catch (const std::error_condition &) {
+  } catch (const std::error_condition &condition) {
+    set_last_error(condition);
+    std::remove(output_chd_path);
+    return CHDMAN_FFI_ERR_INTERNAL;
+  } catch (const std::exception &ex) {
+    set_last_error(ex.what());
     std::remove(output_chd_path);
     return CHDMAN_FFI_ERR_INTERNAL;
   } catch (...) {
+    set_last_error("unknown native exception");
     std::remove(output_chd_path);
     return CHDMAN_FFI_ERR_INTERNAL;
   }
@@ -360,6 +379,7 @@ FFI_PLUGIN_EXPORT int chdman_create_dvd_ex(const char *input_path, const char *o
                                            const chdman_options *options,
                                            volatile int *progress_permille,
                                            volatile int *cancel_flag) {
+  g_last_error.clear();
   if (!input_path || !output_chd_path) return CHDMAN_FFI_ERR_INVALID_INPUT;
   if (!file_exists(input_path)) return CHDMAN_FFI_ERR_OPEN_INPUT;
   const int force = options ? options->force : 0;
@@ -399,12 +419,12 @@ FFI_PLUGIN_EXPORT int chdman_create_dvd_ex(const char *input_path, const char *o
 
     auto chd = std::make_unique<chd_rawfile_compressor>(*input_file, 0, input_size);
     err = chd->create(output_chd_path, input_size, hunk_size, kDvdSectorSize, compression);
-    if (err) return CHDMAN_FFI_ERR_OPEN_OUTPUT;
+    if (err) { set_last_error(err); return CHDMAN_FFI_ERR_OPEN_OUTPUT; }
 
     // The "DVD " tag (empty payload) is what marks the CHD as a DVD; emulators
     // key on its presence via chd_file::check_is_dvd().
     err = chd->write_metadata(DVD_METADATA_TAG, 0, std::string());
-    if (err) return CHDMAN_FFI_ERR_CODEC;
+    if (err) { set_last_error(err); return CHDMAN_FFI_ERR_CODEC; }
 
     const int rc = run_compression(*chd, progress_permille, cancel_flag);
     // Destroy the compressor first so its worker threads stop (and stop touching
@@ -412,10 +432,16 @@ FFI_PLUGIN_EXPORT int chdman_create_dvd_ex(const char *input_path, const char *o
     chd.reset();
     if (rc != CHDMAN_FFI_OK) std::remove(output_chd_path);
     return rc;
-  } catch (const std::error_condition &) {
+  } catch (const std::error_condition &condition) {
+    set_last_error(condition);
+    std::remove(output_chd_path);
+    return CHDMAN_FFI_ERR_INTERNAL;
+  } catch (const std::exception &ex) {
+    set_last_error(ex.what());
     std::remove(output_chd_path);
     return CHDMAN_FFI_ERR_INTERNAL;
   } catch (...) {
+    set_last_error("unknown native exception");
     std::remove(output_chd_path);
     return CHDMAN_FFI_ERR_INTERNAL;
   }
@@ -432,6 +458,7 @@ FFI_PLUGIN_EXPORT int chdman_extract_cd_ex(const char *input_chd_path, const cha
                                            const chdman_options *options,
                                            volatile int *progress_permille,
                                            volatile int *cancel_flag) {
+  g_last_error.clear();
   if (!input_chd_path || !output_cue_path || !output_bin_path)
     return CHDMAN_FFI_ERR_INVALID_INPUT;
   if (!file_exists(input_chd_path)) return CHDMAN_FFI_ERR_OPEN_INPUT;
@@ -543,9 +570,14 @@ FFI_PLUGIN_EXPORT int chdman_extract_cd_ex(const char *input_chd_path, const cha
 
     if (progress_permille) *progress_permille = 1000;
     return CHDMAN_FFI_OK;
-  } catch (const std::error_condition &) {
+  } catch (const std::error_condition &condition) {
+    set_last_error(condition);
+    return CHDMAN_FFI_ERR_INTERNAL;
+  } catch (const std::exception &ex) {
+    set_last_error(ex.what());
     return CHDMAN_FFI_ERR_INTERNAL;
   } catch (...) {
+    set_last_error("unknown native exception");
     return CHDMAN_FFI_ERR_INTERNAL;
   }
 }
@@ -556,6 +588,8 @@ FFI_PLUGIN_EXPORT int chdman_extract_cd(const char *input_chd_path, const char *
   return chdman_extract_cd_ex(input_chd_path, output_cue_path, output_bin_path, &options, nullptr,
                               nullptr);
 }
+
+FFI_PLUGIN_EXPORT const char *chdman_last_error(void) { return g_last_error.c_str(); }
 
 #else /* !CHDMAN_AVAILABLE */
 
@@ -625,5 +659,7 @@ FFI_PLUGIN_EXPORT int chdman_extract_cd(const char *input_chd_path,
   (void)force;
   return CHDMAN_FFI_ERR_LIB_UNAVAILABLE;
 }
+
+FFI_PLUGIN_EXPORT const char *chdman_last_error(void) { return ""; }
 
 #endif /* CHDMAN_AVAILABLE */

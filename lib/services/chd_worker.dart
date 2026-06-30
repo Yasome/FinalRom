@@ -92,8 +92,14 @@ class ChdWorker {
       } else if (code == ChdmanResult.errCancelled) {
         params.sendPort.send(ChdResult(success: false, cancelled: true));
       } else {
-        params.sendPort
-            .send(ChdResult(success: false, error: _messageForCode(code)));
+        // Fetch the native detail right after the call (same thread) so the
+        // generic code message carries the real chdman reason.
+        final detail = chdmanLastError();
+        final message = _messageForCode(code);
+        params.sendPort.send(ChdResult(
+          success: false,
+          error: detail.isEmpty ? message : '$message: $detail',
+        ));
       }
     } catch (error) {
       params.sendPort.send(ChdResult(success: false, error: error.toString()));

@@ -79,6 +79,9 @@ typedef _ChdmanExtractCdExDart = int Function(
   Pointer<Int32> cancelFlag,
 );
 
+typedef _ChdmanLastErrorNative = Pointer<Utf8> Function();
+typedef _ChdmanLastErrorDart = Pointer<Utf8> Function();
+
 final _ChdmanCreateCdExDart _chdmanCreateCdEx = _dylib
     .lookupFunction<_ChdmanCreateCdExNative, _ChdmanCreateCdExDart>(
         'chdman_create_cd_ex');
@@ -90,6 +93,10 @@ final _ChdmanCreateDvdExDart _chdmanCreateDvdEx = _dylib
 final _ChdmanExtractCdExDart _chdmanExtractCdEx = _dylib
     .lookupFunction<_ChdmanExtractCdExNative, _ChdmanExtractCdExDart>(
         'chdman_extract_cd_ex');
+
+final _ChdmanLastErrorDart _chdmanLastError = _dylib
+    .lookupFunction<_ChdmanLastErrorNative, _ChdmanLastErrorDart>(
+        'chdman_last_error');
 
 /// Tunable chdman options, mirroring the relevant command-line flags. Plain
 /// data so it can be sent across isolates; converted to the native struct at
@@ -232,4 +239,13 @@ int chdmanExtractCd(
     malloc.free(binPtr);
     _freeOptions(optionsPtr);
   }
+}
+
+/// The native detail for the most recent failed chdman call on the current
+/// thread, or an empty string if none. Call this immediately after a non-ok
+/// result from [chdmanCreateCd]/[chdmanCreateDvd]/[chdmanExtractCd] on the same
+/// isolate to enrich the generic [ChdmanResult] code with the real reason.
+String chdmanLastError() {
+  final ptr = _chdmanLastError();
+  return ptr == nullptr ? '' : ptr.toDartString();
 }
