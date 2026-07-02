@@ -136,5 +136,9 @@
   "chdCodecsTitle": "圧縮コーデック",
   "chdCodecsHelper": "カンマ区切り: cdlz, cdzl, cdfl, cdzs, none",
   "chdHunkTitle": "ハンクサイズ（バイト）",
-  "chdHunkHelper": "デフォルトの場合は空欄"
+  "chdHunkHelper": "デフォルトの場合は空欄",
+  "tabArchive": "アーカイブ",
+  "archiveFormat": "形式",
+  "archiveCompressHint": "圧縮するファイルをここにドロップ",
+  "archiveDecompressHint": ".zip / .gz / .zst ファイルをここにドロップ"
 }

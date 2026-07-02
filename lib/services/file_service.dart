@@ -36,6 +36,18 @@ class FileService {
     return [];
   }
 
+  /// Picks one or more files of any type (used by the general archive
+  /// compressor, which accepts arbitrary input). Returns an empty list on
+  /// mobile, where the Android picker is used from the UI layer instead.
+  static Future<List<String>> pickAnyFiles({bool allowMultiple = true}) async {
+    if (isMobile) return [];
+    final result = await FilePicker.pickFiles(allowMultiple: allowMultiple);
+    if (result != null) {
+      return result.paths.whereType<String>().toList();
+    }
+    return [];
+  }
+
   static Future<String?> pickPatchFile() async {
     if (isMobile) {
       return null;

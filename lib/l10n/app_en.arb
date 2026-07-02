@@ -251,5 +251,9 @@
   "chdCodecsTitle": "Compression codecs",
   "chdCodecsHelper": "Comma-separated: cdlz, cdzl, cdfl, cdzs, none",
   "chdHunkTitle": "Hunk size (bytes)",
-  "chdHunkHelper": "Leave empty for default"
+  "chdHunkHelper": "Leave empty for default",
+  "tabArchive": "Archive",
+  "archiveFormat": "Format",
+  "archiveCompressHint": "Drop any file here to compress",
+  "archiveDecompressHint": "Drop a .zip / .gz / .zst file here"
 }

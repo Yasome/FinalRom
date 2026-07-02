@@ -136,5 +136,9 @@
   "chdCodecsTitle": "Códecs de compresión",
   "chdCodecsHelper": "Separados por comas: cdlz, cdzl, cdfl, cdzs, none",
   "chdHunkTitle": "Tamaño de hunk (bytes)",
-  "chdHunkHelper": "Déjalo vacío para el valor predeterminado"
+  "chdHunkHelper": "Déjalo vacío para el valor predeterminado",
+  "tabArchive": "Archivo",
+  "archiveFormat": "Formato",
+  "archiveCompressHint": "Suelta cualquier archivo aquí para comprimir",
+  "archiveDecompressHint": "Suelta un archivo .zip / .gz / .zst aquí"
 }

@@ -136,5 +136,9 @@
   "chdCodecsTitle": "خوارزميات الضغط",
   "chdCodecsHelper": "مفصولة بفواصل: cdlz، cdzl، cdfl، cdzs، none",
   "chdHunkTitle": "حجم القطعة (بايت)",
-  "chdHunkHelper": "اتركه فارغًا للقيمة الافتراضية"
+  "chdHunkHelper": "اتركه فارغًا للقيمة الافتراضية",
+  "tabArchive": "أرشيف",
+  "archiveFormat": "الصيغة",
+  "archiveCompressHint": "أفلت أي ملف هنا للضغط",
+  "archiveDecompressHint": "أفلت ملف ‎.zip / .gz / .zst هنا"
 }
