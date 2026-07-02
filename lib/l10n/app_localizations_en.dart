@@ -311,7 +311,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get btnDecompress => 'Decompress';
 
   @override
-  String get chdCreateHint => 'Drop .cue or .bin file here';
+  String get chdCreateHint => 'Drop .cue or .iso file here';
 
   @override
   String get chdExtractHint => 'Drop .chd file here';
@@ -324,6 +324,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chdDiscTypeDvd => 'DVD';
+
+  @override
+  String get chdBinNeedsCue =>
+      'A .bin is a raw track — add its .cue sheet instead.';
 
   @override
   String get switchMergeTab => 'Merge';
@@ -453,4 +457,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chdHunkHelper => 'Leave empty for default';
+
+  @override
+  String get tabArchive => 'Archive';
+
+  @override
+  String get archiveFormat => 'Format';
+
+  @override
+  String get archiveCompressHint => 'Drop any file here to compress';
+
+  @override
+  String get archiveDecompressHint => 'Drop a .zip / .gz / .zst file here';
 }

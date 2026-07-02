@@ -311,7 +311,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get btnDecompress => 'فك الضغط';
 
   @override
-  String get chdCreateHint => 'أفلِت ملف .cue أو .bin هنا';
+  String get chdCreateHint => 'أفلِت ملف .cue أو .iso هنا';
 
   @override
   String get chdExtractHint => 'أفلِت ملف .chd هنا';
@@ -324,6 +324,10 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get chdDiscTypeDvd => 'DVD';
+
+  @override
+  String get chdBinNeedsCue =>
+      'ملف .bin هو مسار خام — أضِف ورقة .cue الخاصة به بدلاً منه.';
 
   @override
   String get switchMergeTab => 'دمج';
@@ -453,4 +457,16 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get chdHunkHelper => 'اتركه فارغًا للقيمة الافتراضية';
+
+  @override
+  String get tabArchive => 'أرشيف';
+
+  @override
+  String get archiveFormat => 'الصيغة';
+
+  @override
+  String get archiveCompressHint => 'أفلت أي ملف هنا للضغط';
+
+  @override
+  String get archiveDecompressHint => 'أفلت ملف ‎.zip / .gz / .zst هنا';
 }

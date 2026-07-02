@@ -665,7 +665,7 @@ abstract class AppLocalizations {
   /// No description provided for @chdCreateHint.
   ///
   /// In en, this message translates to:
-  /// **'Drop .cue or .bin file here'**
+  /// **'Drop .cue or .iso file here'**
   String get chdCreateHint;
 
   /// No description provided for @chdExtractHint.
@@ -691,6 +691,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'DVD'**
   String get chdDiscTypeDvd;
+
+  /// No description provided for @chdBinNeedsCue.
+  ///
+  /// In en, this message translates to:
+  /// **'A .bin is a raw track — add its .cue sheet instead.'**
+  String get chdBinNeedsCue;
 
   /// No description provided for @switchMergeTab.
   ///
@@ -925,6 +931,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Leave empty for default'**
   String get chdHunkHelper;
+
+  /// No description provided for @tabArchive.
+  ///
+  /// In en, this message translates to:
+  /// **'Archive'**
+  String get tabArchive;
+
+  /// No description provided for @archiveFormat.
+  ///
+  /// In en, this message translates to:
+  /// **'Format'**
+  String get archiveFormat;
+
+  /// No description provided for @archiveCompressHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Drop any file here to compress'**
+  String get archiveCompressHint;
+
+  /// No description provided for @archiveDecompressHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Drop a .zip / .gz / .zst file here'**
+  String get archiveDecompressHint;
 }
 
 class _AppLocalizationsDelegate

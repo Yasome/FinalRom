@@ -332,6 +332,14 @@ FFI_PLUGIN_EXPORT int chdman_create_cd_ex(const char *input_path, const char *ou
       totalsectors += trackinfo.frames + trackinfo.extraframes;
     }
 
+    // A zero-track / zero-sector TOC (e.g. a bare .bin with no cue sheet, or a
+    // cue whose referenced tracks could not be sized) would otherwise create a
+    // 0-hunk CHD whose compressor never finalizes and spins forever. Reject it.
+    if (toc.numtrks == 0 || totalsectors == 0) {
+      set_last_error("no tracks found in input; a .bin needs its .cue sheet");
+      return CHDMAN_FFI_ERR_INVALID_INPUT;
+    }
+
     chd_codec_type compression[4];
     parse_cd_codecs(options ? options->codecs : nullptr, compression);
 
