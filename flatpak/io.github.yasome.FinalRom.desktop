@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Final ROM
+GenericName=ROM Toolkit
+Comment=Offline toolkit for retro and console game ROMs
+Exec=final_rom
+Icon=io.github.yasome.FinalRom
+Terminal=false
+Categories=Utility;
+Keywords=ROM;emulation;3DS;Switch;CHD;NSP;NSZ;XCI;patch;IPS;xdelta;checksum;
+StartupNotify=true
+StartupWMClass=io.github.yasome.FinalRom

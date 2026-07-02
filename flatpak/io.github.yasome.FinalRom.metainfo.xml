@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.yasome.FinalRom</id>
+  <metadata_license>FSFAP</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+
+  <name>Final ROM</name>
+  <summary>Offline toolkit for retro and console game ROMs</summary>
+
+  <description>
+    <p>
+      Final ROM is an all-in-one offline utility for working with retro and
+      console game ROMs. Everything runs locally on your device — there are no
+      accounts, no servers, and no internet connection required.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>3DS: decrypt and re-encrypt 3DS ROMs (.3ds / CCI)</li>
+      <li>Switch: compress and decompress NSP/NSZ and XCI/XCZ files, and merge or unmerge multi-content packages</li>
+      <li>CHD: compress disc images to CHD and extract them back</li>
+      <li>Patching: apply IPS, UPS, BPS, APS, PPF, EBP, DPS and xdelta patches</li>
+      <li>Hashing: verify files with CRC32, MD5, SHA-1 and SHA-256 checksums</li>
+    </ul>
+    <p>
+      You are responsible for the ROMs and files you process; only use Final ROM
+      with content you legally own. It does not include, distribute, or download
+      any game files or encryption keys — you must supply your own.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">io.github.yasome.FinalRom.desktop</launchable>
+
+  <developer id="io.github.yasome">
+    <name>yasome</name>
+  </developer>
+
+  <url type="homepage">https://github.com/Yasome/FinalRom</url>
+  <url type="bugtracker">https://github.com/Yasome/FinalRom/issues</url>
+  <url type="vcs-browser">https://github.com/Yasome/FinalRom</url>
+
+  <content_rating type="oars-1.1" />
+
+  <!--
+    TODO: screenshot URLs are placeholders. They resolve once this branch is
+    merged to `main` and pushed. Replace with the final hosted links before the
+    Flathub submission (Phase 8) if the screenshots are hosted elsewhere.
+  -->
+  <screenshots>
+    <screenshot type="default">
+      <caption>Decrypt and re-encrypt 3DS ROMs</caption>
+      <image>https://raw.githubusercontent.com/Yasome/FinalRom/main/Screenshots/1.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Apply IPS, UPS, BPS, PPF and xdelta ROM patches</caption>
+      <image>https://raw.githubusercontent.com/Yasome/FinalRom/main/Screenshots/2.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Merge, split, compress and decompress Switch packages</caption>
+      <image>https://raw.githubusercontent.com/Yasome/FinalRom/main/Screenshots/3.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Configure appearance, output handling and performance</caption>
+      <image>https://raw.githubusercontent.com/Yasome/FinalRom/main/Screenshots/4.png</image>
+    </screenshot>
+  </screenshots>
+
+  <releases>
+    <release version="1.0.0" date="2026-07-02">
+      <description>
+        <p>Initial release.</p>
+      </description>
+    </release>
+  </releases>
+
+  <keywords>
+    <keyword>ROM</keyword>
+    <keyword>emulation</keyword>
+    <keyword>3DS</keyword>
+    <keyword>Switch</keyword>
+    <keyword>CHD</keyword>
+    <keyword>patch</keyword>
+    <keyword>checksum</keyword>
+  </keywords>
+</component>
