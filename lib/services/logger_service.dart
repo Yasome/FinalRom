@@ -27,8 +27,16 @@ class LoggerService {
     }
 
     Logger.root.onRecord.listen((record) {
-      final message = '${record.level.name}: ${record.time}: ${_redactPaths(record.message)}\n';
-      
+      final buffer = StringBuffer('${record.level.name}: ${record.time}: ${_redactPaths(record.message)}');
+      if (record.error != null) {
+        buffer.write('\n  error: ${_redactPaths(record.error.toString())}');
+      }
+      if (record.stackTrace != null) {
+        buffer.write('\n${record.stackTrace}');
+      }
+      buffer.write('\n');
+      final message = buffer.toString();
+
       // Print to console in debug mode
       stdout.write(message);
       
