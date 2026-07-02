@@ -4,9 +4,12 @@ import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path/path.dart' as p;
+import 'package:logging/logging.dart';
 import '../patcher/patcher_factory.dart';
 
 class FileService {
+  static final Logger _log = Logger('FileService');
+
   static bool get isMobile => Platform.isAndroid || Platform.isIOS;
   static bool get isDesktop => Platform.isWindows || Platform.isMacOS || Platform.isLinux;
 
@@ -25,13 +28,17 @@ class FileService {
       // Android uses AndroidFilePicker directly in the UI layer.
       return [];
     }
-    final result = await FilePicker.pickFiles(
-      allowMultiple: allowMultiple,
-      type: FileType.custom,
-      allowedExtensions: allowedExtensions,
-    );
-    if (result != null) {
-      return result.paths.whereType<String>().toList();
+    try {
+      final result = await FilePicker.pickFiles(
+        allowMultiple: allowMultiple,
+        type: FileType.custom,
+        allowedExtensions: allowedExtensions,
+      );
+      if (result != null) {
+        return result.paths.whereType<String>().toList();
+      }
+    } catch (error, stack) {
+      _log.severe('File picker failed', error, stack);
     }
     return [];
   }
@@ -41,9 +48,13 @@ class FileService {
   /// mobile, where the Android picker is used from the UI layer instead.
   static Future<List<String>> pickAnyFiles({bool allowMultiple = true}) async {
     if (isMobile) return [];
-    final result = await FilePicker.pickFiles(allowMultiple: allowMultiple);
-    if (result != null) {
-      return result.paths.whereType<String>().toList();
+    try {
+      final result = await FilePicker.pickFiles(allowMultiple: allowMultiple);
+      if (result != null) {
+        return result.paths.whereType<String>().toList();
+      }
+    } catch (error, stack) {
+      _log.severe('File picker failed', error, stack);
     }
     return [];
   }
@@ -52,39 +63,59 @@ class FileService {
     if (isMobile) {
       return null;
     }
-    final result = await FilePicker.pickFiles(
-      allowMultiple: false,
-      type: FileType.custom,
-      allowedExtensions: PatcherFactory.supportedExtensions.toList(),
-    );
-    return result?.paths.firstWhere((p) => p != null, orElse: () => null);
+    try {
+      final result = await FilePicker.pickFiles(
+        allowMultiple: false,
+        type: FileType.custom,
+        allowedExtensions: PatcherFactory.supportedExtensions.toList(),
+      );
+      return result?.paths.firstWhere((p) => p != null, orElse: () => null);
+    } catch (error, stack) {
+      _log.severe('File picker failed', error, stack);
+      return null;
+    }
   }
 
   static Future<String?> pickAnyFile() async {
     if (isMobile) return null;
-    final result = await FilePicker.pickFiles(allowMultiple: false);
-    return result?.paths.firstWhere((p) => p != null, orElse: () => null);
+    try {
+      final result = await FilePicker.pickFiles(allowMultiple: false);
+      return result?.paths.firstWhere((p) => p != null, orElse: () => null);
+    } catch (error, stack) {
+      _log.severe('File picker failed', error, stack);
+      return null;
+    }
   }
 
   static Future<List<String>> pickFolderAndScan() async {
     if (isMobile) return [];
-    final folderPath = await FilePicker.getDirectoryPath();
-    if (folderPath == null) return [];
+    try {
+      final folderPath = await FilePicker.getDirectoryPath();
+      if (folderPath == null) return [];
 
-    final dir = Directory(folderPath);
-    if (!await dir.exists()) return [];
+      final dir = Directory(folderPath);
+      if (!await dir.exists()) return [];
 
-    final files = await dir.list(recursive: false).toList();
-    return files
-        .whereType<File>()
-        .where((file) => p.extension(file.path).toLowerCase() == '.3ds')
-        .map((file) => file.path)
-        .toList();
+      final files = await dir.list(recursive: false).toList();
+      return files
+          .whereType<File>()
+          .where((file) => p.extension(file.path).toLowerCase() == '.3ds')
+          .map((file) => file.path)
+          .toList();
+    } catch (error, stack) {
+      _log.severe('Folder picker failed', error, stack);
+      return [];
+    }
   }
 
   static Future<String?> pickOutputFolder() async {
     if (isMobile) return null;
-    return await FilePicker.getDirectoryPath();
+    try {
+      return await FilePicker.getDirectoryPath();
+    } catch (error, stack) {
+      _log.severe('Folder picker failed', error, stack);
+      return null;
+    }
   }
 
   static Future<String> getAppDocumentsDirectory() async {
