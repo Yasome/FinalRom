@@ -59,6 +59,28 @@ jobs:
       - name: Build Linux
         run: flutter build linux
 
+      - name: Package Linux AppImage
+        run: |
+          APPID=io.github.yasome.FinalRom
+          mkdir -p AppDir/usr/bin
+          cp -r build/linux/x64/release/bundle/. AppDir/usr/bin/
+          install -Dm644 "flatpak/$APPID.desktop" "AppDir/$APPID.desktop"
+          install -Dm644 "flatpak/$APPID.desktop" "AppDir/usr/share/applications/$APPID.desktop"
+          install -Dm644 "flatpak/icons/256x256/$APPID.png" "AppDir/$APPID.png"
+          install -Dm644 "flatpak/icons/256x256/$APPID.png" "AppDir/usr/share/icons/hicolor/256x256/apps/$APPID.png"
+          install -Dm644 "flatpak/$APPID.metainfo.xml" "AppDir/usr/share/metainfo/$APPID.metainfo.xml"
+          printf '%s\n' '#!/bin/sh' 'HERE=$(dirname "$(readlink -f "$0")")' 'exec "$HERE/usr/bin/final_rom" "$@"' > AppDir/AppRun
+          chmod +x AppDir/AppRun
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
+          ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 ./appimagetool-x86_64.AppImage AppDir final-rom-x86_64.AppImage
+
+      - name: Upload Linux AppImage
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: final-rom-appimage
+          path: final-rom-x86_64.AppImage
+
       - name: Zip Linux build
         run: |
           cd build/linux/x64/release/bundle
@@ -159,6 +181,11 @@ jobs:
         with:
           name: final-rom-linux
 
+      - name: Download Linux AppImage
+        uses: actions/download-artifact@v8.0.1
+        with:
+          name: final-rom-appimage
+
       - name: Publish to Release
         uses: softprops/action-gh-release@v3.0.1
         with:
@@ -168,3 +195,4 @@ jobs:
             final-rom-macos.zip
             final-rom-windows.zip
             final-rom-linux.zip
+            final-rom-x86_64.AppImage
