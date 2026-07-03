@@ -1,7 +1,12 @@
+> **STATUS (2026-07-03): these sources ARE now vendored and tracked in this
+> directory.** The instructions below are retained only as provenance for where
+> the subset came from and how it is laid out. The CMake and Swift Package Manager
+> builds compile the real CHD backend from these files; nothing needs to be added.
+
 # Vendor the MAME chd sources here
 
 This directory must contain a minimal subset of MAME's CHD library plus the
-codec libraries the CD hunk codecs depend on. They are **not** bundled.
+codec libraries the CD hunk codecs depend on.
 
 ## MAME chd subset (from https://github.com/mamedev/mame, `src/lib/util/`)
 

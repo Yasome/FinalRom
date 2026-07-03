@@ -6,14 +6,15 @@ content for the NSZ feature) can be compressed/decompressed in chunks without
 buffering whole files in native code. Supports Android, iOS, Linux, macOS, and
 Windows.
 
-## Vendoring the libzstd sources
+## Vendored libzstd sources
 
-The libzstd sources are **not** bundled. Drop the zstd source tree into
-`src/zstd/` as described in [`src/zstd/PLACEHOLDER.md`](src/zstd/PLACEHOLDER.md).
+The upstream libzstd source tree **is vendored** under `src/zstd/` (see
+[`src/zstd/PLACEHOLDER.md`](src/zstd/PLACEHOLDER.md) for provenance). The CMake
+(Linux/Windows/Android) and Swift Package Manager (macOS) builds compile the real
+libzstd from it, so the stream functions and the NSZ feature work.
 
-Until then the plugin builds a stub: the stream functions return
-`ZSTD_FFI_ERR_LIB_UNAVAILABLE` and the NSZ feature reports that Zstandard
-support is not built.
+If the sources are ever removed, the build falls back to a stub where those calls
+return `ZSTD_FFI_ERR_LIB_UNAVAILABLE`.
 
 ## Usage
 

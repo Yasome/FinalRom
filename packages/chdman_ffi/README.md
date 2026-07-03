@@ -4,15 +4,16 @@ FFI plugin that wraps MAME's CHD ("chdman") library so the app can **create**
 and **extract** CD CHD images (`.cue`/`.bin`/`.gdi`/`.iso` ↔ `.chd`). Supports
 Android, iOS, Linux, macOS, and Windows.
 
-## Vendoring the MAME chd sources
+## Vendored MAME chd sources
 
-The MAME chd library is **not** bundled. Before building with real CHD support,
-drop the chd source subset and the codec libraries into `src/chd/` as described
-in [`src/chd/PLACEHOLDER.md`](src/chd/PLACEHOLDER.md).
+The MAME chd library subset and its codec libraries (zlib, lzma, FLAC, zstd,
+utf8proc) **are vendored** under `src/chd/` (see
+[`src/chd/PLACEHOLDER.md`](src/chd/PLACEHOLDER.md) for provenance/layout). The
+CMake (Linux/Windows/Android) and Swift Package Manager (macOS) builds compile the
+real CHD backend from them, so `chdmanCreateCd` / `chdmanExtractCd` work.
 
-Until then the plugin builds a stub: `chdmanCreateCd` / `chdmanExtractCd` return
-`ChdmanResult.errLibUnavailable` and the app reports that CHD support is not
-built. The rest of the app is unaffected.
+If the sources are ever removed, the build falls back to a stub where those calls
+return `ChdmanResult.errLibUnavailable`; the rest of the app is unaffected.
 
 ## Usage
 
