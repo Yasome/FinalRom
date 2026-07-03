@@ -50,6 +50,9 @@ if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/xdelta/xdelta3.c"
   set(ENABLE_THREADS OFF CACHE STRING "xdelta3_ffi: single-threaded liblzma" FORCE)
   set(CREATE_XZ_SYMLINKS OFF CACHE BOOL "" FORCE)
   set(CREATE_LZMA_SYMLINKS OFF CACHE BOOL "" FORCE)
+  # Static liblzma is linked into the shared plugin, so it must be built -fPIC
+  # or the link fails with a text-relocation error on Linux.
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
   add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/xz"
                    "${CMAKE_CURRENT_BINARY_DIR}/xz" EXCLUDE_FROM_ALL)
 
