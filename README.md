@@ -21,11 +21,7 @@ your device. By default the original file is left untouched and a new output
 file is written next to it. The heavy work runs in the background so the app
 stays responsive.
 
-
-
 https://github.com/user-attachments/assets/a8ea9270-d594-4aa4-9a1d-814d2031dcf9
-
-
 
 ## Important notes
 
@@ -36,8 +32,8 @@ https://github.com/user-attachments/assets/a8ea9270-d594-4aa4-9a1d-814d2031dcf9
 
 ## Platforms
 
-Final ROM currently builds and runs on Android, iOS, and Windows. It does not
-run in a web browser, because it works with local files.
+Final ROM currently builds and runs on Android, iOS, Windows, macOS, and Linux.
+It does not run in a web browser, because it works with local files.
 
 ## Building and running
 
@@ -73,7 +69,7 @@ Requires a Mac with Xcode and CocoaPods installed.
 
 ```sh
 flutter run -d ios          # debug
-flutter build ios           # release build 
+flutter build ios           # release build
 ```
 
 ### Windows
@@ -95,10 +91,6 @@ flutter run -d linux      # debug
 flutter build linux       # release build
 ```
 
-`chdman_ffi` and `zstd_ffi` already have Linux build files, but
-`xdelta3_ffi` does not, so xdelta patching would need additional native
-build setup on this platform.
-
 ### macOS
 
 Requires a Mac with Xcode and CocoaPods installed.
@@ -108,9 +100,14 @@ flutter run -d macos      # debug
 flutter build macos       # release build
 ```
 
-`chdman_ffi` and `zstd_ffi` already have macOS build files, but
-`xdelta3_ffi` does not, so xdelta patching would need additional native
-build setup on this platform.
+The release build is not signed with an Apple Developer ID or notarized, so
+macOS Gatekeeper will quarantine it after download and may report that the app
+is "damaged" or "can't be verified". To run it, either right-click the app and
+choose **Open** the first time, or clear the quarantine attribute:
+
+```sh
+xattr -cr /path/to/final_rom.app
+```
 
 ## Privacy
 
