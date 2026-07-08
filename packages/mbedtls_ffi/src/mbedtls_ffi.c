@@ -10,8 +10,8 @@
  * otherwise a stub is built that reports MBEDTLS_FFI_ERR_LIB_UNAVAILABLE so a
  * host build that omits the library (e.g. the iOS podspec) still links.
  *
- * Mbed TLS 4.x exposes crypto exclusively through PSA (psa_cipher_*/psa_hash_*);
- * the classic mbedtls_aes_*/mbedtls_md_* APIs are gone.
+ * Mbed TLS 4.x exposes crypto exclusively through PSA (psa_cipher_... / psa_hash_...);
+ * the classic mbedtls_aes_... / mbedtls_md_... APIs are gone.
  */
 
 #include "mbedtls_ffi.h"
