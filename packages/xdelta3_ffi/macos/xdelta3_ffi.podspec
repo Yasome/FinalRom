@@ -14,11 +14,13 @@ FFI bindings to xdelta3 (VCDIFF) for applying .xdelta ROM patches.
   s.author           = { 'yasome' => 'aldwalshafy@gmail.com' }
   s.source           = { :path => '.' }
 
-  # Real xdelta3 build with the header-only DJW secondary compressor only.
-  # liblzma is intentionally not built on macOS (CocoaPods can't run the CMake
-  # that the other platforms use), so patches made with `-S lzma` will not
-  # apply here; `-S djw` / default patches do. The wrapper unity-includes
-  # ../src/xdelta/xdelta3.c, so only the wrapper is listed as a source.
+  # NOTE: the supported macOS build is Swift Package Manager (see
+  # macos/xdelta3_ffi/Package.swift), which DOES build liblzma and applies
+  # `-S lzma` patches. This CocoaPods podspec is only a legacy fallback and
+  # builds the header-only DJW secondary compressor only — no liblzma — so
+  # `-S lzma` patches will not apply under CocoaPods; `-S djw` / default patches
+  # do. The wrapper unity-includes ../src/xdelta/xdelta3.c, so only the wrapper
+  # is listed as a source.
   s.source_files        = '../src/xdelta3_ffi.{h,c}'
   s.public_header_files = '../src/xdelta3_ffi.h'
   s.preserve_paths      = '../src/xdelta/**/*'

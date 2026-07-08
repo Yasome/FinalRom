@@ -71,9 +71,9 @@ if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/xdelta/xdelta3.c"
     target_compile_definitions(xdelta3_ffi PRIVATE _CRT_SECURE_NO_WARNINGS)
   endif()
 else()
-  message(WARNING "xdelta3_ffi: xdelta3 sources not found in src/xdelta — "
-                  "building a stub. Drop xdelta3.h and xdelta3.c there to "
-                  "enable xdelta patching.")
+  message(FATAL_ERROR "xdelta3_ffi: xdelta3 sources missing from src/xdelta — "
+                      "refusing to build a stub. Drop xdelta3.h and xdelta3.c "
+                      "there to enable xdelta patching.")
 endif()
 
 if (ANDROID)

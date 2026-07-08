@@ -11,7 +11,8 @@
 // forbids source dirs and header-search-paths outside the package root, so the
 // symlink brings the vendored tree nominally *inside* the root. This mirrors the
 // vendored upstream manifest's own `libzstd` target (lib/{common,compress,
-// decompress,dictBuilder}, publicHeadersPath "."). Defining ZSTD_AVAILABLE flips
+// decompress}, publicHeadersPath "."; dictBuilder is omitted — the wrapper
+// never calls the ZDICT_* API). Defining ZSTD_AVAILABLE flips
 // the wrapper from its stub branch to the real one; it picks up <zstd.h> from the
 // libzstd target's public headers via the target dependency.
 import PackageDescription
@@ -36,7 +37,7 @@ let package = Package(
         .target(
             name: "libzstd",
             path: "Sources/libzstd",
-            sources: ["common", "compress", "decompress", "dictBuilder"],
+            sources: ["common", "compress", "decompress"],
             publicHeadersPath: ".",
             cSettings: [
                 .headerSearchPath("."),
