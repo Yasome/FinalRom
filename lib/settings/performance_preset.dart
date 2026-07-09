@@ -90,10 +90,11 @@ class ResolvedTuning {
   });
 }
 
-/// Per-tier device budget, independent of the specific input. Numbers are
-/// derived from the benchmark sweeps in `tool/bench_nsz_params.dart`,
-/// `tool/bench_chd_params.dart`, and `tool/bench_3ds_parallel.dart`; see the
-/// `nsz-preset-tuning` memory note for the raw curves.
+/// Per-tier device budget, independent of the specific input. The CHD and 3DS
+/// numbers come from benchmark sweeps; the NSZ `nszThreadCount` was reset when
+/// AES-CTR moved to native Mbed TLS crypto — the old values encoded the
+/// pure-Dart AES bottleneck (see `nsz-investigation.md`) and warrant a fresh
+/// sweep on native-AES hardware.
 ///
 /// Workloads scale very differently, so each gets its own cap rather than one
 /// shared budget:
@@ -128,18 +129,24 @@ class _TierBudget {
 const _balancedCodecs = 'cdlz,cdzl,cdfl';
 
 final Map<PerformancePreset, _TierBudget> _budgets = {
-  // compressionLevel 15 is the zstd "knee": levels 6-15 compress at the same
-  // (AES-bound) wall time, but 17+ switches to btultra and costs 2x-12x more
-  // time for <1.5% extra size. Weak drops to 12 as a hedge for slower CPUs on
-  // compressible content (negligible size cost). nszThreadCount stays low: a
-  // single dominant NCA (the common case) is AES-pipeline-bound, so extra zstd
-  // workers don't speed it up and only cost RAM.
+  // Retuned after AES-CTR moved to native Mbed TLS (see nsz-investigation.md):
+  // decryption is no longer the wall, so zstd itself is now the limiting stage
+  // and its worker count matters again. nszThreadCount is raised per tier — High
+  // delegates to the core-aware Auto default (0 -> cores-2, mobile-capped), Mid
+  // runs a fixed 4, Weak a memory-conscious 2 — because even a single dominant
+  // NCA (the common case) now benefits from parallel zstd workers rather than
+  // stalling on the AES pipeline.
+  //
+  // compressionLevel 15 stays the default "knee": at 17+ zstd switches to
+  // btultra, which now carries a real (zstd-bound) time cost for <1.5% extra
+  // size. Weak stays at 12 as a hedge for slower CPUs. Level 18 for High may be
+  // worth revisiting once a field NSZ benchmark on native-AES hardware exists.
   PerformancePreset.weak: _TierBudget(
     chdNumProcessors: (cores) => 2,
     threeDsParallelism: (cores) => 2,
     nszMaxConcurrentNcas: (cores) => 2,
     nszChunkSizeMB: 1,
-    nszThreadCount: 1,
+    nszThreadCount: 2,
     compressionLevel: 12,
   ),
   PerformancePreset.mid: _TierBudget(
@@ -147,7 +154,7 @@ final Map<PerformancePreset, _TierBudget> _budgets = {
     threeDsParallelism: (cores) => cores.clamp(2, 4),
     nszMaxConcurrentNcas: (cores) => cores.clamp(2, 4),
     nszChunkSizeMB: 2,
-    nszThreadCount: 1,
+    nszThreadCount: 4,
     compressionLevel: 15,
   ),
   PerformancePreset.high: _TierBudget(
@@ -155,7 +162,7 @@ final Map<PerformancePreset, _TierBudget> _budgets = {
     threeDsParallelism: (cores) => cores.clamp(2, 4),
     nszMaxConcurrentNcas: (cores) => cores.clamp(2, 6),
     nszChunkSizeMB: 4,
-    nszThreadCount: 2,
+    nszThreadCount: 0, // Auto: cores-2 (ZstdEncoder.defaultWorkerCount), mobile-capped
     compressionLevel: 15,
   ),
 };
