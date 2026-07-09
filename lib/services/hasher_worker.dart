@@ -46,39 +46,60 @@ class HasherWorker {
     }
   }
 
+  /// Single read pass: feeds each chunk to the three native (Mbed TLS) digest
+  /// contexts and, in the same loop, the unchanged CRC32 table computation. If
+  /// the native path throws mid-stream, falls back to the pure-Dart hasher so a
+  /// result is still produced.
   static Future<HasherResult> _runWithNative(String filePath) async {
-    final nativeFuture = NativeHasher.computeConcurrently(
-      filePath,
-      {NativeHashAlgo.md5, NativeHashAlgo.sha1, NativeHashAlgo.sha256},
-    );
-    final crc32Future = _hashInDart(filePath, crc32: true);
-
-    final native = await nativeFuture;
-    final crc32 = await crc32Future;
-
-    var md5Hash = native[NativeHashAlgo.md5];
-    var sha1Hash = native[NativeHashAlgo.sha1];
-    var sha256Hash = native[NativeHashAlgo.sha256];
-
-    if (md5Hash == null || sha1Hash == null || sha256Hash == null) {
-      final fallback = await _hashInDart(
-        filePath,
-        md5: md5Hash == null,
-        sha1: sha1Hash == null,
-        sha256: sha256Hash == null,
+    RandomAccessFile? file;
+    NativeDigests? digests;
+    try {
+      file = await File(filePath).open(mode: FileMode.read);
+      digests = NativeDigests(
+        {NativeHashAlgo.md5, NativeHashAlgo.sha1, NativeHashAlgo.sha256},
       );
-      md5Hash ??= fallback.md5;
-      sha1Hash ??= fallback.sha1;
-      sha256Hash ??= fallback.sha256;
-    }
 
-    return HasherResult(
-      success: true,
-      md5Hash: md5Hash,
-      sha1Hash: sha1Hash,
-      sha256Hash: sha256Hash,
-      crc32Hash: crc32.crc32,
-    );
+      var crc32Value = 0xFFFFFFFF;
+      final buffer = Uint8List(_readBufferSize);
+
+      while (true) {
+        final read = await file.readInto(buffer);
+        if (read <= 0) break;
+
+        // The native update copies each chunk synchronously, so reusing the
+        // buffer for the next read is safe.
+        final chunk = read == buffer.length
+            ? buffer
+            : Uint8List.sublistView(buffer, 0, read);
+        digests.update(chunk);
+
+        // CRC32: unchanged Dart table loop, folded into the same read pass.
+        for (var i = 0; i < read; i++) {
+          crc32Value =
+              _crc32Table[(crc32Value ^ buffer[i]) & 0xFF] ^ (crc32Value >>> 8);
+        }
+      }
+
+      final native = digests.finish();
+      digests = null;
+      crc32Value ^= 0xFFFFFFFF;
+      final crc32Hash =
+          crc32Value.toRadixString(16).padLeft(8, '0').toUpperCase();
+
+      return HasherResult(
+        success: true,
+        md5Hash: native[NativeHashAlgo.md5],
+        sha1Hash: native[NativeHashAlgo.sha1],
+        sha256Hash: native[NativeHashAlgo.sha256],
+        crc32Hash: crc32Hash,
+      );
+    } catch (_) {
+      // Native hashing failed mid-stream; fall back to the pure-Dart path.
+      return _runAllInDart(filePath);
+    } finally {
+      digests?.dispose();
+      await file?.close();
+    }
   }
 
   static Future<HasherResult> _runAllInDart(String filePath) async {
