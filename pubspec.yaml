@@ -44,6 +44,9 @@ dependencies:
   # FFI bindings to libzstd (streaming), used by the Switch NSZ feature.
   zstd_ffi:
     path: packages/zstd_ffi
+  # FFI bindings to Mbed TLS (PSA): native AES-CTR + MD5/SHA-1/SHA-256 hashing.
+  mbedtls_ffi:
+    path: packages/mbedtls_ffi
   # FFI bindings to libarchive, the unified backend for the Archive tab
   # (zip/7z/gzip/zstd). Builds as a stub until the sources are vendored.
   archive_ffi:

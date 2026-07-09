@@ -77,6 +77,14 @@ void *mbedtls_ffi_aes_ctr_create(const uint8_t *key16,
     return NULL;
   }
 
+  /* setup copied the key into the operation, so the key slot is no longer
+   * needed. Release it now rather than holding it for the cipher's whole life:
+   * PSA has a small fixed pool of key slots (default 32), and callers create a
+   * fresh cipher per NCA section — hundreds over a file — relying on the
+   * finalizer for cleanup, which would otherwise exhaust the pool. */
+  psa_destroy_key(c->key);
+  c->key = MBEDTLS_SVC_KEY_ID_INIT;
+
   return c;
 }
 

@@ -12,6 +12,7 @@ list(APPEND FLUTTER_FFI_PLUGIN_LIST
   archive_ffi
   chdman_ffi
   jni
+  mbedtls_ffi
   xdelta3_ffi
   zstd_ffi
 )
