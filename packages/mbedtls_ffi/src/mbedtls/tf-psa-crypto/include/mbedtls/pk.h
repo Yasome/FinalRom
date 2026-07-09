@@ -99,6 +99,14 @@ typedef struct mbedtls_pk_info_t mbedtls_pk_info_t;
 #undef MBEDTLS_PK_MAX_PUBKEY_RAW_LEN
 #define MBEDTLS_PK_MAX_PUBKEY_RAW_LEN MBEDTLS_PK_MAX_RSA_PUBKEY_RAW_LEN
 #endif
+/* With no PSA_WANT_KEY_TYPE_{ECC,RSA}_PUBLIC_KEY, pub_raw below would be a
+ * zero-sized array. GCC/Clang accept that as an extension; MSVC rejects it
+ * (C2229). The field is unused whenever both types are absent, so give it
+ * one dead byte instead of patching every build config that omits PK. */
+#if MBEDTLS_PK_MAX_PUBKEY_RAW_LEN == 0
+#undef MBEDTLS_PK_MAX_PUBKEY_RAW_LEN
+#define MBEDTLS_PK_MAX_PUBKEY_RAW_LEN 1
+#endif
 
 /**
  * \brief           Public key container
