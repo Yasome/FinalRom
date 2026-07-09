@@ -54,7 +54,14 @@ let package = Package(
                 .headerSearchPath("../../chd/util"),
                 .headerSearchPath("../../chd/osd"),
                 .headerSearchPath("../../chd/3rdparty"),            // "lzma/C/LzmaDec.h"
-                .headerSearchPath("../../chd/3rdparty/zlib"),       // <zlib.h> + zconf.h
+                .headerSearchPath("../../chd/3rdparty/zlib"),       // <zlib.h>
+                // zconf.h itself: NOT the zlib dir above. That dir has no real
+                // zconf.h (only zconf.h.in/.cmakein/.included -- CMake generates
+                // the real one for the Linux/Windows/Android build), so a bare
+                // #include "zconf.h" there falls through to the macOS SDK's own
+                // system zconf.h, whose LFS64/z_off64_t macros disagree with our
+                // zutil.h/crc32.c and cause "conflicting types" build errors.
+                .headerSearchPath("../../chd/3rdparty/zlib/spm_public"),
                 .headerSearchPath("../../chd/3rdparty/zstd/lib"),   // <zstd.h>
                 .headerSearchPath("../../chd/3rdparty/flac/include"), // <FLAC/all.h>
                 .headerSearchPath("../../chd/3rdparty/utf8proc"),   // <utf8proc.h>
@@ -78,6 +85,9 @@ let package = Package(
                 .define("NDEBUG", to: "1"), // release-grade codec (see main target)
                 // -fno-modules: avoid clashing with the macOS SDK's own `zlib` module.
                 .unsafeFlags(["-fno-modules"]),
+                // spm_public/zconf.h (see the comment in the main target) so our own
+                // crc32.c etc. don't pick up the macOS SDK's system zconf.h either.
+                .headerSearchPath("spm_public"),
             ]
         ),
 
