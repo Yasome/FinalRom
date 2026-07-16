@@ -69,6 +69,11 @@ class HomeScreen extends StatelessWidget {
                           selectedIcon: const Icon(Icons.album),
                           label: Text(loc.tabChd),
                         ),
+                        // NavigationRailDestination(
+                        //   icon: const Icon(Icons.folder_zip_outlined),
+                        //   selectedIcon: const Icon(Icons.folder_zip),
+                        //   label: Text(loc.tabArchive),
+                        // ),
                         NavigationRailDestination(
                           icon: const Icon(Icons.videogame_asset_outlined),
                           selectedIcon: const Icon(Icons.videogame_asset),
@@ -107,6 +112,11 @@ class HomeScreen extends StatelessWidget {
                       selectedIcon: const Icon(Icons.album),
                       label: loc.tabChd,
                     ),
+                    // NavigationDestination(
+                    //   icon: const Icon(Icons.folder_zip_outlined),
+                    //   selectedIcon: const Icon(Icons.folder_zip),
+                    //   label: loc.tabArchive,
+                    // ),
                     NavigationDestination(
                       icon: const Icon(Icons.videogame_asset_outlined),
                       selectedIcon: const Icon(Icons.videogame_asset),
@@ -120,16 +130,10 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-
-
 /// Shows a "Saved" SnackBar with an optional Share action, used after a
 /// mobile operation finishes. The file is already written to a browsable folder;
 /// sharing is offered as a one-tap convenience rather than popped automatically.
-void showSavedSnackBar(
-  BuildContext context,
-  String outputPath, {
-  String? trailing,
-}) {
+void showSavedSnackBar(BuildContext context, String outputPath, {String? trailing}) {
   final loc = AppLocalizations.of(context)!;
   final fileName = outputPath.split(RegExp(r'[\\/]')).last;
   final message = trailing == null
@@ -179,9 +183,9 @@ void showErrorSnackBar(BuildContext context, String message) {
 
 /// Shows a neutral, themed informational SnackBar (e.g. "Cancelling…").
 void showInfoSnackBar(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text(message), duration: const Duration(seconds: 5)),
-  );
+  ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(SnackBar(content: Text(message), duration: const Duration(seconds: 5)));
 }
 
 /// Shows a themed warning SnackBar, using the app's semantic warning color so
@@ -227,6 +231,9 @@ class _DragDropTargetState extends State<DragDropTarget> {
     if (defaultTargetPlatform == TargetPlatform.android) {
       return widget.child;
     }
+    if (!TickerMode.valuesOf(context).enabled) {
+      return widget.child;
+    }
     final loc = AppLocalizations.of(context)!;
     return DropTarget(
       onDragEntered: (_) {
@@ -245,6 +252,7 @@ class _DragDropTargetState extends State<DragDropTarget> {
         }
       },
       child: Stack(
+        fit: StackFit.passthrough,
         children: [
           widget.child,
           if (_isDragging)
@@ -255,60 +263,95 @@ class _DragDropTargetState extends State<DragDropTarget> {
                 child: Container(
                   // ignore: deprecated_member_use
                   color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.92),
-                  child: Center(
-                    child: Container(
-                      margin: const EdgeInsets.all(24.0),
-                      padding: const EdgeInsets.all(24.0),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surface,
-                        borderRadius: BorderRadius.circular(24.0),
-                        border: Border.all(
-                          color: Theme.of(context).colorScheme.primary,
-                          width: 2.0,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final compact = constraints.maxHeight < 160.0;
+                      return Center(
+                        child: Container(
+                          margin: EdgeInsets.all(compact ? 8.0 : 24.0),
+                          padding: EdgeInsets.all(compact ? 12.0 : 24.0),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.surface,
+                            borderRadius: BorderRadius.circular(compact ? 12.0 : 24.0),
+                            border: Border.all(
+                              color: Theme.of(context).colorScheme.primary,
+                              width: 2.0,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                // ignore: deprecated_member_use
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 16.0,
+                                spreadRadius: 2.0,
+                              ),
+                            ],
+                          ),
+                          child: compact
+                              ? _buildCompactHint(context)
+                              : _buildFullHint(context, loc),
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            // ignore: deprecated_member_use
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 16.0,
-                            spreadRadius: 2.0,
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.upload_file_rounded,
-                            size: 64.0,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                          const SizedBox(height: 16.0),
-                          Text(
-                            widget.hintText,
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Theme.of(context).colorScheme.onSurface,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 8.0),
-                          Text(
-                            loc.dragDropSubtext,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    ),
+                      );
+                    },
                   ),
                 ),
               ),
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildFullHint(BuildContext context, AppLocalizations loc) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.upload_file_rounded,
+          size: 64.0,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+        const SizedBox(height: 16.0),
+        Text(
+          widget.hintText,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8.0),
+        Text(
+          loc.dragDropSubtext,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCompactHint(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.upload_file_rounded,
+          size: 24.0,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+        const SizedBox(width: 8.0),
+        Flexible(
+          child: Text(
+            widget.hintText,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ],
     );
   }
 }

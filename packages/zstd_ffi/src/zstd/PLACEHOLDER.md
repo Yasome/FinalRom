@@ -1,7 +1,10 @@
+> **STATUS (2026-07-03): the upstream Zstandard source tree IS now vendored and
+> tracked here.** The note below is retained only as provenance. The CMake and
+> Swift Package Manager builds compile the real libzstd from these files.
+
 # Vendor the libzstd sources here
 
-This directory must contain the upstream Zstandard source tree. It is **not**
-bundled.
+This directory contains the upstream Zstandard source tree.
 
 Download a release from https://github.com/facebook/zstd and place it so the
 layout is:

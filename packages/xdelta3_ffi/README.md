@@ -2,7 +2,9 @@
 
 FFI plugin that wraps the native [xdelta3](https://github.com/jmacd/xdelta)
 (VCDIFF) library so the app can apply `.xdelta` / `.xdelta3` / `.vcdiff` ROM
-patches. Supports Android and Windows.
+patches. Supports Android, Windows, Linux, and macOS. LZMA secondary
+compression (`-S lzma`) is available on every platform, including macOS (built
+via Swift Package Manager).
 
 ## Vendored sources
 

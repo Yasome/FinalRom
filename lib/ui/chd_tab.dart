@@ -25,25 +25,48 @@ class ChdTab extends StatefulWidget {
 
 class _ChdTabState extends State<ChdTab> {
   ChdAction _action = ChdAction.create;
+  // CD (false) or DVD (true) output for create jobs; ignored by extract.
+  bool _createDvd = false;
 
   // The queue of files to process, one after another.
   List<String> _selectedFiles = [];
 
+  // Extensions offered by the file picker, scoped to the action so a raw .bin
+  // can't be picked for create (it has no track sheet to compress). .gdi is the
+  // Sega GD-ROM track sheet, handled by chdman's parse_toc like .cue.
+  List<String> get _pickerExtensions =>
+      _action == ChdAction.create ? const ['cue', 'gdi', 'iso'] : const ['chd'];
+
   bool _isValidForAction(String path) {
     final ext = p.extension(path).toLowerCase();
     if (_action == ChdAction.create) {
-      return ext == '.cue' || ext == '.bin' || ext == '.iso';
+      return ext == '.cue' || ext == '.gdi' || ext == '.iso';
     }
     return ext == '.chd';
   }
 
-  void _addFiles(Iterable<String> paths) {
-    final valid = paths.where(_isValidForAction);
-    if (valid.isEmpty) return;
-    setState(() {
-      _selectedFiles.addAll(valid);
-      _selectedFiles = _selectedFiles.toSet().toList(); // unique
-    });
+  // A raw .bin selected for create: recognizable but unusable on its own, so we
+  // point the user at the .cue sheet instead of silently producing a hang.
+  bool _isBareBinForCreate(String path) =>
+      _action == ChdAction.create && p.extension(path).toLowerCase() == '.bin';
+
+  void _addFiles(BuildContext context, Iterable<String> paths) {
+    final pathList = paths.toList();
+    final valid = pathList.where(_isValidForAction).toList();
+    if (valid.isNotEmpty) {
+      setState(() {
+        _selectedFiles.addAll(valid);
+        _selectedFiles = _selectedFiles.toSet().toList(); // unique
+      });
+      return;
+    }
+    // Nothing usable was added — explain why.
+    final loc = AppLocalizations.of(context)!;
+    if (pathList.any(_isBareBinForCreate)) {
+      showWarningSnackBar(context, loc.chdBinNeedsCue);
+    } else if (pathList.isNotEmpty) {
+      showErrorSnackBar(context, loc.errInvalidFileType);
+    }
   }
 
   @override
@@ -51,11 +74,7 @@ class _ChdTabState extends State<ChdTab> {
     final loc = AppLocalizations.of(context)!;
     return DragDropTarget(
       hintText: _action == ChdAction.create ? loc.chdCreateHint : loc.chdExtractHint,
-      onFilesDropped: (paths) {
-        final hadValid = paths.any(_isValidForAction);
-        _addFiles(paths);
-        if (!hadValid) showErrorSnackBar(context, loc.errInvalidFileType);
-      },
+      onFilesDropped: (paths) => _addFiles(context, paths),
       child: BlocConsumer<ChdBloc, ChdState>(
         listener: (context, state) {
           if (state is ChdBatchDone) {
@@ -66,8 +85,9 @@ class _ChdTabState extends State<ChdTab> {
           final isRunning = state is ChdRunning || state is ChdProgress;
           final double? progressValue = state is ChdProgress ? state.fraction : null;
           final QueuePosition? position = state is ChdProgress ? state.position : null;
-          final statusLabel =
-              _action == ChdAction.create ? loc.statusCompressing : loc.statusExtracting;
+          final statusLabel = _action == ChdAction.create
+              ? loc.statusCompressing
+              : loc.statusExtracting;
           return Padding(
             padding: AppSpacing.page,
             child: Column(
@@ -96,6 +116,14 @@ class _ChdTabState extends State<ChdTab> {
                           });
                         },
                 ),
+                if (_action == ChdAction.create)
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(loc.chdDiscType),
+                    subtitle: Text(_createDvd ? loc.chdDiscTypeDvd : loc.chdDiscTypeCd),
+                    value: _createDvd,
+                    onChanged: isRunning ? null : (value) => setState(() => _createDvd = value),
+                  ),
                 AppSpacing.gapLg,
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -131,8 +159,7 @@ class _ChdTabState extends State<ChdTab> {
                                   icon: const Icon(Icons.delete),
                                   onPressed: isRunning
                                       ? null
-                                      : () => setState(
-                                          () => _selectedFiles.removeAt(index)),
+                                      : () => setState(() => _selectedFiles.removeAt(index)),
                                 ),
                               );
                             },
@@ -220,14 +247,18 @@ class _ChdTabState extends State<ChdTab> {
   Future<void> _browse(BuildContext context) async {
     List<String> files = [];
     if (Platform.isAndroid && context.mounted) {
-      final picked = await AndroidFilePicker.pickFiles(context,
-          allowedExtensions: ['cue', 'bin', 'iso', 'chd']);
+      final picked = await AndroidFilePicker.pickFiles(
+        context,
+        allowedExtensions: _pickerExtensions,
+      );
       if (picked != null) files.addAll(picked);
     } else {
       files = await FileService.pickFiles(
-          allowMultiple: true, allowedExtensions: ['cue', 'bin', 'iso', 'chd']);
+        allowMultiple: true,
+        allowedExtensions: _pickerExtensions,
+      );
     }
-    _addFiles(files);
+    if (context.mounted) _addFiles(context, files);
   }
 
   Future<void> _runAction(BuildContext context) async {
@@ -252,22 +283,33 @@ class _ChdTabState extends State<ChdTab> {
       final baseName = p.basenameWithoutExtension(file);
       String outputPath;
       String? outputBinPath;
+      bool sourceIsDvd = false;
       if (_action == ChdAction.create) {
         outputPath = p.join(dir, '$baseName.chd');
       } else {
-        outputPath = p.join(dir, '$baseName.cue');
-        outputBinPath = p.join(dir, '$baseName.bin');
+        // The CHD records its own type, so extract auto-detects: a DVD CHD
+        // becomes a single .iso, a CD CHD a .cue/.bin pair.
+        sourceIsDvd = chdmanChdIsDvd(file) > 0;
+        if (sourceIsDvd) {
+          outputPath = p.join(dir, '$baseName.iso');
+        } else {
+          outputPath = p.join(dir, '$baseName.cue');
+          outputBinPath = p.join(dir, '$baseName.bin');
+        }
       }
       if (await File(outputPath).exists() ||
           (outputBinPath != null && await File(outputBinPath).exists())) {
         existingOutputs.add(p.basename(outputPath));
       }
-      jobs.add(ChdJob(
-        action: _action,
-        inputPath: file,
-        outputPath: outputPath,
-        outputBinPath: outputBinPath,
-      ));
+      jobs.add(
+        ChdJob(
+          action: _action,
+          inputPath: file,
+          outputPath: outputPath,
+          outputBinPath: outputBinPath,
+          sourceIsDvd: sourceIsDvd,
+        ),
+      );
     }
 
     // A single confirmation for the whole queue if any output already exists.
@@ -286,16 +328,17 @@ class _ChdTabState extends State<ChdTab> {
     if (context.mounted) {
       final tuning = settings.resolveTuning();
       context.read<ChdBloc>().add(
-            StartChd(
-              jobs: jobs,
-              force: true,
-              options: ChdOptions(
-                codecs: tuning.chdCodecs,
-                numProcessors: tuning.chdNumProcessors,
-                hunkBytes: tuning.chdHunkBytes,
-              ),
-            ),
-          );
+        StartChd(
+          jobs: jobs,
+          force: true,
+          createDvd: _createDvd,
+          options: ChdOptions(
+            codecs: tuning.chdCodecs,
+            numProcessors: tuning.chdNumProcessors,
+            hunkBytes: tuning.chdHunkBytes,
+          ),
+        ),
+      );
     }
   }
 }

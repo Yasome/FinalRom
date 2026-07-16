@@ -2,10 +2,10 @@
 
 on:
   push:
-    branches: [ main, master ]
-    tags: [ 'v*' ]
+    branches: [main, master]
+    tags: ["v*"]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
   workflow_dispatch:
 
 jobs:
@@ -13,12 +13,12 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
+          channel: "stable"
           cache: true
 
       - name: Install dependencies
@@ -31,7 +31,7 @@ jobs:
         run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath final-rom-windows.zip
 
       - name: Upload Windows Build
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: final-rom-windows
           path: final-rom-windows.zip
@@ -40,17 +40,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
+          channel: "stable"
           cache: true
 
       - name: Install dependencies
@@ -59,27 +59,49 @@ jobs:
       - name: Build Linux
         run: flutter build linux
 
+      - name: Package Linux AppImage
+        run: |
+          APPID=io.github.yasome.FinalRom
+          mkdir -p AppDir/usr/bin
+          cp -r build/linux/x64/release/bundle/. AppDir/usr/bin/
+          install -Dm644 "flatpak/$APPID.desktop" "AppDir/$APPID.desktop"
+          install -Dm644 "flatpak/$APPID.desktop" "AppDir/usr/share/applications/$APPID.desktop"
+          install -Dm644 "flatpak/icons/256x256/$APPID.png" "AppDir/$APPID.png"
+          install -Dm644 "flatpak/icons/256x256/$APPID.png" "AppDir/usr/share/icons/hicolor/256x256/apps/$APPID.png"
+          install -Dm644 "flatpak/$APPID.metainfo.xml" "AppDir/usr/share/metainfo/$APPID.metainfo.xml"
+          printf '%s\n' '#!/bin/sh' 'HERE=$(dirname "$(readlink -f "$0")")' 'exec "$HERE/usr/bin/final_rom" "$@"' > AppDir/AppRun
+          chmod +x AppDir/AppRun
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
+          ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 ./appimagetool-x86_64.AppImage AppDir final-rom-x86_64.AppImage
+
+      - name: Upload Linux AppImage
+        uses: actions/upload-artifact@v7
+        with:
+          name: final-rom-appimage
+          path: final-rom-x86_64.AppImage
+
       - name: Zip Linux build
         run: |
           cd build/linux/x64/release/bundle
           zip -r ../../../../../final-rom-linux.zip .
 
       - name: Upload Linux Build
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: final-rom-linux
           path: final-rom-linux.zip
 
   build-macos:
-    runs-on: macos-latest
+    runs-on: macos-26
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
+          channel: "stable"
           cache: true
 
       - name: Install dependencies
@@ -94,7 +116,7 @@ jobs:
           ditto -c -k --keepParent final_rom.app final-rom-macos.zip
 
       - name: Upload macOS Build
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: final-rom-macos
           path: build/macos/Build/Products/Release/final-rom-macos.zip
@@ -103,18 +125,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
-          distribution: 'zulu'
-          java-version: '17'
+          distribution: "zulu"
+          java-version: "17"
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
+          channel: "stable"
           cache: true
 
       - name: Install dependencies
@@ -127,7 +149,7 @@ jobs:
         run: mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/final-rom-android.apk
 
       - name: Upload Android Build
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: final-rom-android-apk
           path: build/app/outputs/flutter-apk/final-rom-android.apk
@@ -140,27 +162,32 @@ jobs:
       contents: write
     steps:
       - name: Download Android APK
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: final-rom-android-apk
 
       - name: Download macOS app
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: final-rom-macos
 
       - name: Download Windows build
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: final-rom-windows
 
       - name: Download Linux build
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: final-rom-linux
 
+      - name: Download Linux AppImage
+        uses: actions/download-artifact@v8
+        with:
+          name: final-rom-appimage
+
       - name: Publish to Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: ${{ github.ref_name }}
           files: |
@@ -168,3 +195,4 @@ jobs:
             final-rom-macos.zip
             final-rom-windows.zip
             final-rom-linux.zip
+            final-rom-x86_64.AppImage

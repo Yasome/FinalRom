@@ -19,6 +19,15 @@ class ChdParams {
   /// Tunable chdman options (codecs, threads, hunk size, force).
   final ChdOptions options;
 
+  /// When true and [action] is [ChdAction.create], the input is written as a
+  /// DVD CHD (chdman createdvd) instead of a CD CHD. Ignored by extract.
+  final bool createDvd;
+
+  /// When true and [action] is [ChdAction.extract], the input CHD is a DVD CHD
+  /// (detected via [chdmanChdIsDvd]) and is extracted to a single `.iso` at
+  /// [outputPath] instead of a `.cue`/`.bin` pair. Ignored by create.
+  final bool sourceIsDvd;
+
   /// Address of a native `Int32` progress cell the caller allocated and polls,
   /// or 0 for no progress reporting. Native code writes 0..1000 into it.
   final int progressAddress;
@@ -37,6 +46,8 @@ class ChdParams {
     required this.outputPath,
     this.outputBinPath,
     this.options = const ChdOptions(),
+    this.createDvd = false,
+    this.sourceIsDvd = false,
     this.progressAddress = 0,
     this.cancelAddress = 0,
     required this.sendPort,
@@ -58,7 +69,9 @@ class ChdWorker {
       final int code;
       switch (params.action) {
         case ChdAction.create:
-          code = chdmanCreateCd(
+          final createChd =
+              params.createDvd ? chdmanCreateDvd : chdmanCreateCd;
+          code = createChd(
             params.inputPath,
             params.outputPath,
             options: params.options,
@@ -66,18 +79,28 @@ class ChdWorker {
             cancel: cancel,
           );
         case ChdAction.extract:
-          final binPath = params.outputBinPath;
-          if (binPath == null) {
-            throw ArgumentError('Extracting a CHD requires outputBinPath.');
+          if (params.sourceIsDvd) {
+            code = chdmanExtractDvd(
+              params.inputPath,
+              params.outputPath,
+              options: params.options,
+              progress: progress,
+              cancel: cancel,
+            );
+          } else {
+            final binPath = params.outputBinPath;
+            if (binPath == null) {
+              throw ArgumentError('Extracting a CD CHD requires outputBinPath.');
+            }
+            code = chdmanExtractCd(
+              params.inputPath,
+              params.outputPath,
+              binPath,
+              options: params.options,
+              progress: progress,
+              cancel: cancel,
+            );
           }
-          code = chdmanExtractCd(
-            params.inputPath,
-            params.outputPath,
-            binPath,
-            options: params.options,
-            progress: progress,
-            cancel: cancel,
-          );
       }
 
       if (code == ChdmanResult.ok) {
@@ -85,8 +108,14 @@ class ChdWorker {
       } else if (code == ChdmanResult.errCancelled) {
         params.sendPort.send(ChdResult(success: false, cancelled: true));
       } else {
-        params.sendPort
-            .send(ChdResult(success: false, error: _messageForCode(code)));
+        // Fetch the native detail right after the call (same thread) so the
+        // generic code message carries the real chdman reason.
+        final detail = chdmanLastError();
+        final message = _messageForCode(code);
+        params.sendPort.send(ChdResult(
+          success: false,
+          error: detail.isEmpty ? message : '$message: $detail',
+        ));
       }
     } catch (error) {
       params.sendPort.send(ChdResult(success: false, error: error.toString()));

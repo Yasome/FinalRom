@@ -1,0 +1,13 @@
+* text=auto eol=lf
+# Binary patch test fixtures must never be line-ending converted.
+test/fixtures/patches/** binary
+*.ips binary
+*.ips32 binary
+*.ups binary
+*.bps binary
+*.ppf binary
+*.aps binary
+*.ebp binary
+*.dps binary
+*.xdelta binary
+*.vcdiff binary

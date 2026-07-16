@@ -214,7 +214,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dragDropHintBatch => 'Drop .3ds ROM files here';
 
   @override
-  String get dragDropHintPatch => 'Drop ROM or Patch file here';
+  String get dragDropHintRom => 'Drop ROM file here';
+
+  @override
+  String get dragDropHintPatch => 'Drop patch file here';
 
   @override
   String get dragDropHintHash => 'Drop file here to hash';
@@ -308,10 +311,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get btnDecompress => 'Decompress';
 
   @override
-  String get chdCreateHint => 'Drop .cue or .bin file here';
+  String get chdCreateHint => 'Drop .cue or .iso file here';
 
   @override
   String get chdExtractHint => 'Drop .chd file here';
+
+  @override
+  String get chdDiscType => 'Disc type';
+
+  @override
+  String get chdDiscTypeCd => 'CD';
+
+  @override
+  String get chdDiscTypeDvd => 'DVD';
+
+  @override
+  String get chdBinNeedsCue =>
+      'A .bin is a raw track — add its .cue sheet instead.';
 
   @override
   String get switchMergeTab => 'Merge';
@@ -441,4 +457,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chdHunkHelper => 'Leave empty for default';
+
+  @override
+  String get tabArchive => 'Archive';
+
+  @override
+  String get archiveFormat => 'Format';
+
+  @override
+  String get archiveCompressHint => 'Drop any file here to compress';
+
+  @override
+  String get archiveDecompressHint => 'Drop a .zip / .gz / .zst file here';
 }

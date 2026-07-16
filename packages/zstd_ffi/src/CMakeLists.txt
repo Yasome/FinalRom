@@ -42,14 +42,18 @@ if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/zstd/lib/zstd.h")
     # defaults this OFF on Android, so force it on for every platform; it links
     # pthread on UNIX/Android and uses native threads on MSVC.
     set(ZSTD_MULTITHREAD_SUPPORT ON CACHE BOOL "" FORCE)
+    # The app only ever reads/writes modern zstd frames (NSZ); zstd's CMake
+    # default compiles the v0.1-v0.7 legacy decoders (~1 MB) we never use, so
+    # turn them off to shrink the binary and speed the build.
+    set(ZSTD_LEGACY_SUPPORT OFF CACHE BOOL "" FORCE)
     add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/zstd/build/cmake"
                      "${CMAKE_CURRENT_BINARY_DIR}/zstd" EXCLUDE_FROM_ALL)
     target_link_libraries(zstd_ffi PRIVATE libzstd_static)
   endif()
 else()
-  message(WARNING "zstd_ffi: libzstd sources not found in src/zstd — "
-                  "building a stub. See src/zstd/PLACEHOLDER.md to enable "
-                  "Zstandard support.")
+  message(FATAL_ERROR "zstd_ffi: libzstd sources missing from src/zstd — "
+                      "refusing to build a stub. See src/zstd/PLACEHOLDER.md "
+                      "to enable Zstandard support.")
 endif()
 
 if (ANDROID)

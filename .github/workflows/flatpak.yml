@@ -1,0 +1,42 @@
+name: Flatpak
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  validate-metadata:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Install validators
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y appstream desktop-file-utils
+
+      - name: Validate AppStream metainfo
+        run: appstreamcli validate --explain flatpak/io.github.yasome.FinalRom.metainfo.xml
+
+      - name: Validate desktop entry
+        run: desktop-file-validate flatpak/io.github.yasome.FinalRom.desktop
+
+  lint-manifest:
+    runs-on: ubuntu-latest
+    # Reports Flathub policy findings (e.g. the --filesystem=host permission)
+    # without blocking the workflow.
+    continue-on-error: true
+    container:
+      image: ghcr.io/flathub-infra/flatpak-builder-lint:latest
+      options: --privileged
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Lint manifest
+        run: flatpak-builder-lint manifest flatpak/io.github.yasome.FinalRom.yml

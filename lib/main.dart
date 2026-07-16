@@ -16,6 +16,7 @@ import 'blocs/batch_bloc.dart';
 import 'blocs/patcher_bloc.dart';
 import 'blocs/hasher_bloc.dart';
 import 'blocs/chd_bloc.dart';
+import 'blocs/archive_bloc.dart';
 import 'blocs/nsp_merge_bloc.dart';
 import 'blocs/nsp_unmerge_bloc.dart';
 import 'blocs/nsz_bloc.dart';
@@ -57,6 +58,7 @@ void main() {
           BlocProvider<PatcherBloc>(create: (_) => PatcherBloc()),
           BlocProvider<HasherBloc>(create: (_) => HasherBloc()),
           BlocProvider<ChdBloc>(create: (_) => ChdBloc()),
+          // BlocProvider<ArchiveBloc>(create: (_) => ArchiveBloc()),
           BlocProvider<NspMergeBloc>(create: (_) => NspMergeBloc()),
           BlocProvider<NspUnmergeBloc>(create: (_) => NspUnmergeBloc()),
           BlocProvider<NszBloc>(create: (_) => NszBloc()),
@@ -68,4 +70,4 @@ void main() {
     Logger.root.severe('Uncaught zone error', error, stack);
   });
 }
-// flutter clean; flutter build apk --release; flutter build windows --release
+// flutter clean; flutter build apk --release; flutter build windows --release 

@@ -211,7 +211,10 @@ class AppLocalizationsJa extends AppLocalizations {
   String get dragDropHintBatch => '.3ds ROM ファイルをここにドロップ';
 
   @override
-  String get dragDropHintPatch => 'ROM またはパッチファイルをここにドロップ';
+  String get dragDropHintRom => 'ROM ファイルをここにドロップ';
+
+  @override
+  String get dragDropHintPatch => 'パッチファイルをここにドロップ';
 
   @override
   String get dragDropHintHash => 'ハッシュを計算するファイルをここにドロップ';
@@ -304,10 +307,22 @@ class AppLocalizationsJa extends AppLocalizations {
   String get btnDecompress => '展開';
 
   @override
-  String get chdCreateHint => '.cue または .bin ファイルをここにドロップ';
+  String get chdCreateHint => '.cue または .iso ファイルをここにドロップ';
 
   @override
   String get chdExtractHint => '.chd ファイルをここにドロップ';
+
+  @override
+  String get chdDiscType => 'ディスクの種類';
+
+  @override
+  String get chdDiscTypeCd => 'CD';
+
+  @override
+  String get chdDiscTypeDvd => 'DVD';
+
+  @override
+  String get chdBinNeedsCue => '.bin は生のトラックです。代わりに対応する .cue シートを追加してください。';
 
   @override
   String get switchMergeTab => '結合';
@@ -434,4 +449,16 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get chdHunkHelper => 'デフォルトの場合は空欄';
+
+  @override
+  String get tabArchive => 'アーカイブ';
+
+  @override
+  String get archiveFormat => '形式';
+
+  @override
+  String get archiveCompressHint => '圧縮するファイルをここにドロップ';
+
+  @override
+  String get archiveDecompressHint => '.zip / .gz / .zst ファイルをここにドロップ';
 }

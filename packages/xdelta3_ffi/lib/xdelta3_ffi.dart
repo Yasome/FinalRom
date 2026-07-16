@@ -15,7 +15,15 @@ final DynamicLibrary _dylib = () {
     return DynamicLibrary.open('$_libName.dll');
   }
   if (Platform.isMacOS || Platform.isIOS) {
-    return DynamicLibrary.open('$_libName.framework/$_libName');
+    // The framework name depends on the dependency manager: Swift Package
+    // Manager names it after the SPM product (dashes), CocoaPods after the pod
+    // (underscores). Try the SPM name first, then fall back to CocoaPods.
+    final String spmName = _libName.replaceAll('_', '-');
+    try {
+      return DynamicLibrary.open('$spmName.framework/$spmName');
+    } on ArgumentError {
+      return DynamicLibrary.open('$_libName.framework/$_libName');
+    }
   }
   throw UnsupportedError('Unsupported platform: ${Platform.operatingSystem}');
 }();

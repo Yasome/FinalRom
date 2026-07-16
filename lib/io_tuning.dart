@@ -23,10 +23,9 @@ const int _mib = 1024 * 1024;
 /// flat region while staying modest for mobile RAM.
 const int patchCopyBufferSize = 1 * _mib;
 
-/// Read buffer for the multi-hash file hasher (MD5 + SHA1 + SHA256 + CRC32).
-///
-/// 4 MiB amortises per-chunk overhead across the four hashes; the path is
-/// CPU-bound on hashing, so larger buffers do not help.
+/// Read buffer for the Dart file-hashing pass (CRC32 on desktop; all four on
+/// mobile). 4 MiB amortises per-chunk overhead; the path is CPU-bound, so
+/// larger buffers do not help.
 const int hashReadBufferSize = 4 * _mib;
 
 /// Per-chunk IO size for the NCZ (NSZ/XCZ) codec's streaming compress/decompress

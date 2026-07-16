@@ -51,22 +51,39 @@ class _PatcherTabState extends State<PatcherTab> {
     }
   }
 
+  void _handleRomDrop(List<String> paths) {
+    if (paths.length == 1) {
+      setState(() => _selectedRomFile = paths.first);
+      _checkCompatibility();
+    } else {
+      _assignByType(paths);
+    }
+  }
+
+  void _handlePatchDrop(List<String> paths) {
+    if (paths.length == 1) {
+      setState(() => _selectedPatchFile = paths.first);
+      _checkCompatibility();
+    } else {
+      _assignByType(paths);
+    }
+  }
+
+  void _assignByType(List<String> paths) {
+    for (final path in paths) {
+      if (PatcherFactory.isSupportedPatch(path)) {
+        setState(() => _selectedPatchFile = path);
+      } else {
+        setState(() => _selectedRomFile = path);
+      }
+    }
+    _checkCompatibility();
+  }
+
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context)!;
-    return DragDropTarget(
-      hintText: loc.dragDropHintPatch,
-      onFilesDropped: (paths) {
-        for (var path in paths) {
-          if (PatcherFactory.isSupportedPatch(path)) {
-            setState(() => _selectedPatchFile = path);
-          } else {
-            setState(() => _selectedRomFile = path);
-          }
-        }
-        _checkCompatibility();
-      },
-      child: BlocConsumer<PatcherBloc, PatcherState>(
+    return BlocConsumer<PatcherBloc, PatcherState>(
         listener: (context, state) {
           if (state is PatcherSuccess) {
             final timeStr = '${(state.duration.inMilliseconds / 1000).toStringAsFixed(2)}s';
@@ -87,82 +104,90 @@ class _PatcherTabState extends State<PatcherTab> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Card(
-                          child: Padding(
-                            padding: AppSpacing.card,
-                            child: Column(
-                              children: [
-                                Text(loc.romFile, style: Theme.of(context).textTheme.titleSmall),
-                                Text(
-                                  _selectedRomFile != null ? p.basename(_selectedRomFile!) : loc.errNoFileSelected,
-                                  style: Theme.of(context).textTheme.titleMedium,
-                                ),
-                                AppSpacing.gapSm,
-                                FilledButton.icon(
-                                  icon: const Icon(Icons.folder_open),
-                                  label: Text(loc.btnBrowseRom),
-                                  onPressed: isRunning ? null : () async {
-                                    String? file;
-                                    if (Platform.isAndroid && context.mounted) {
-                                      file = await AndroidFilePicker.pickFile(context);
-                                    } else {
-                                      file = await FileService.pickAnyFile();
-                                    }
-                                    if (file != null) {
-                                      setState(() => _selectedRomFile = file);
-                                      _checkCompatibility();
-                                    }
-                                  },
-                                ),
-                              ],
+                        DragDropTarget(
+                          hintText: loc.dragDropHintRom,
+                          onFilesDropped: _handleRomDrop,
+                          child: Card(
+                            child: Padding(
+                              padding: AppSpacing.card,
+                              child: Column(
+                                children: [
+                                  Text(loc.romFile, style: Theme.of(context).textTheme.titleSmall),
+                                  Text(
+                                    _selectedRomFile != null ? p.basename(_selectedRomFile!) : loc.errNoFileSelected,
+                                    style: Theme.of(context).textTheme.titleMedium,
+                                  ),
+                                  AppSpacing.gapSm,
+                                  FilledButton.icon(
+                                    icon: const Icon(Icons.folder_open),
+                                    label: Text(loc.btnBrowseRom),
+                                    onPressed: isRunning ? null : () async {
+                                      String? file;
+                                      if (Platform.isAndroid && context.mounted) {
+                                        file = await AndroidFilePicker.pickFile(context);
+                                      } else {
+                                        file = await FileService.pickAnyFile();
+                                      }
+                                      if (file != null) {
+                                        setState(() => _selectedRomFile = file);
+                                        _checkCompatibility();
+                                      }
+                                    },
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
                         AppSpacing.gapMd,
-                        Card(
-                          child: Padding(
-                            padding: AppSpacing.card,
-                            child: Column(
-                              children: [
-                                Text(loc.patchFile, style: Theme.of(context).textTheme.titleSmall),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      _selectedPatchFile != null ? p.basename(_selectedPatchFile!) : loc.errNoPatchSelected,
-                                      style: Theme.of(context).textTheme.titleMedium,
-                                    ),
-                                    if (_selectedPatchFile != null) ...[
-                                      const SizedBox(width: 8),
-                                      if (PatcherFactory.isSupportedPatch(_selectedPatchFile!))
-                                        Chip(
-                                          label: Text(PatcherFactory.formatName(_selectedPatchFile!) ?? ''),
-                                          visualDensity: VisualDensity.compact,
-                                          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                                        )
-                                      else
-                                        Text(loc.errUnsupportedPatch, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                        DragDropTarget(
+                          hintText: loc.dragDropHintPatch,
+                          onFilesDropped: _handlePatchDrop,
+                          child: Card(
+                            child: Padding(
+                              padding: AppSpacing.card,
+                              child: Column(
+                                children: [
+                                  Text(loc.patchFile, style: Theme.of(context).textTheme.titleSmall),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        _selectedPatchFile != null ? p.basename(_selectedPatchFile!) : loc.errNoPatchSelected,
+                                        style: Theme.of(context).textTheme.titleMedium,
+                                      ),
+                                      if (_selectedPatchFile != null) ...[
+                                        const SizedBox(width: 8),
+                                        if (PatcherFactory.isSupportedPatch(_selectedPatchFile!))
+                                          Chip(
+                                            label: Text(PatcherFactory.formatName(_selectedPatchFile!) ?? ''),
+                                            visualDensity: VisualDensity.compact,
+                                            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                                          )
+                                        else
+                                          Text(loc.errUnsupportedPatch, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                                      ],
                                     ],
-                                  ],
-                                ),
-                                AppSpacing.gapSm,
-                                FilledButton.icon(
-                                  icon: const Icon(Icons.description),
-                                  label: Text(loc.btnBrowsePatch),
-                                  onPressed: isRunning ? null : () async {
-                                    String? file;
-                                    if (Platform.isAndroid && context.mounted) {
-                                      file = await AndroidFilePicker.pickFile(context);
-                                    } else {
-                                      file = await FileService.pickPatchFile();
-                                    }
-                                    if (file != null) {
-                                      setState(() => _selectedPatchFile = file);
-                                      _checkCompatibility();
-                                    }
-                                  },
-                                ),
-                              ],
+                                  ),
+                                  AppSpacing.gapSm,
+                                  FilledButton.icon(
+                                    icon: const Icon(Icons.description),
+                                    label: Text(loc.btnBrowsePatch),
+                                    onPressed: isRunning ? null : () async {
+                                      String? file;
+                                      if (Platform.isAndroid && context.mounted) {
+                                        file = await AndroidFilePicker.pickFile(context);
+                                      } else {
+                                        file = await FileService.pickPatchFile();
+                                      }
+                                      if (file != null) {
+                                        setState(() => _selectedPatchFile = file);
+                                        _checkCompatibility();
+                                      }
+                                    },
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -253,8 +278,7 @@ class _PatcherTabState extends State<PatcherTab> {
             ),
           );
         },
-      ),
-    );
+      );
   }
 
   Future<void> _applyPatch(BuildContext context) async {

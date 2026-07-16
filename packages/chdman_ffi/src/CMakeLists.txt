@@ -203,9 +203,9 @@ if (EXISTS "${CHD_DIR}/util/chd.cpp" AND EXISTS "${CHD_DIR}/util/chd.h")
     chdman_utf8proc
     ${CHDMAN_ZSTD_TARGET})
 else()
-  message(WARNING "chdman_ffi: MAME chd sources not found in src/chd — "
-                  "building a stub. See src/chd/PLACEHOLDER.md to enable CD "
-                  "CHD support.")
+  message(FATAL_ERROR "chdman_ffi: MAME chd sources missing from src/chd — "
+                      "refusing to build a stub. See src/chd/PLACEHOLDER.md to "
+                      "enable CD CHD support.")
 endif()
 
 if (ANDROID)

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 /// Theme-aware semantic feedback colors that Material's [ColorScheme] does not
 /// provide out of the box. [ColorScheme.error] already covers error states, so
@@ -66,7 +65,8 @@ extension AppThemeContext on BuildContext {
 
   /// Monospace text style for fixed-width data (hashes, byte counts, etc.).
   TextStyle get monospace =>
-      GoogleFonts.ibmPlexMono(textStyle: Theme.of(this).textTheme.bodyMedium);
+      (Theme.of(this).textTheme.bodyMedium ?? const TextStyle())
+          .copyWith(fontFamily: 'IBM Plex Mono');
 }
 
 class AppTheme {
@@ -88,8 +88,8 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: baseScheme,
-      fontFamily: GoogleFonts.ibmPlexSans().fontFamily,
-      textTheme: GoogleFonts.ibmPlexSansTextTheme(baseTextTheme),
+      fontFamily: 'IBM Plex Sans',
+      textTheme: baseTextTheme.apply(fontFamily: 'IBM Plex Sans'),
       extensions: [
         brightness == Brightness.dark
             ? AppSemanticColors.dark

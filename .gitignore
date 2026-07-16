@@ -4,6 +4,10 @@
 *.pyc
 *.swp
 .DS_Store
+
+# Local test env (holds machine-specific absolute paths); keep the example
+.env
+!.env.example
 .atom/
 .build/
 .buildlog/
@@ -35,10 +39,9 @@ migrate_working_dir/
 
 # Symbolication related
 app.*.symbols
-
+**/test_out/**
 # Obfuscation related
 app.*.map.json
-**/test/**
 # Android Studio will place build artifacts here
 /android/app/debug
 /android/app/profile

@@ -20,18 +20,25 @@ class ChdJob extends Equatable {
   /// it is the `.cue` output.
   final String outputPath;
 
-  /// The `.bin` output, used only for [ChdAction.extract].
+  /// The `.bin` output, used only for a CD [ChdAction.extract].
   final String? outputBinPath;
+
+  /// For [ChdAction.extract], true when the input CHD is a DVD CHD (detected up
+  /// front via [chdmanChdIsDvd]); it is then extracted to the single `.iso` at
+  /// [outputPath]. Always false for create.
+  final bool sourceIsDvd;
 
   const ChdJob({
     required this.action,
     required this.inputPath,
     required this.outputPath,
     this.outputBinPath,
+    this.sourceIsDvd = false,
   });
 
   @override
-  List<Object?> get props => [action, inputPath, outputPath, outputBinPath];
+  List<Object?> get props =>
+      [action, inputPath, outputPath, outputBinPath, sourceIsDvd];
 }
 
 // --- Events ---
@@ -50,14 +57,19 @@ class StartChd extends ChdEvent {
   /// [options.force] so existing callers keep working.
   final ChdOptions options;
 
+  /// When true, create jobs produce DVD CHDs (chdman createdvd) instead of CD
+  /// CHDs. Applies to the whole queue; ignored by extract jobs.
+  final bool createDvd;
+
   const StartChd({
     required this.jobs,
     this.force = false,
     this.options = const ChdOptions(),
+    this.createDvd = false,
   });
 
   @override
-  List<Object?> get props => [jobs, force, options];
+  List<Object?> get props => [jobs, force, options, createDvd];
 }
 
 class CancelChd extends ChdEvent {}
@@ -122,6 +134,9 @@ class ChdBloc extends Bloc<ChdEvent, ChdState> {
   // Shared options/force for every job in the current queue.
   ChdOptions _options = const ChdOptions();
 
+  // Whether create jobs in the current queue produce DVD CHDs instead of CD.
+  bool _createDvd = false;
+
   // Shared native cell the worker isolate writes progress (0..1000) into while
   // it is blocked in the synchronous FFI call. This (main) isolate polls it.
   Pointer<Int32>? _progressCell;
@@ -154,7 +169,11 @@ class ChdBloc extends Bloc<ChdEvent, ChdState> {
 
   Future<void> _onStartChd(StartChd event, Emitter<ChdState> emit) async {
     if (event.jobs.isEmpty) return;
-    _logger.info('Starting CHD queue: ${event.jobs.length} job(s).');
+    final queueDiscNote = event.jobs.first.action == ChdAction.create
+        ? ' as ${event.createDvd ? 'DVD' : 'CD'}'
+        : '';
+    _logger.info(
+        'Starting CHD queue: ${event.jobs.length} job(s)$queueDiscNote.');
     // A previous operation must have finished before a new one starts; the UI
     // gates this. Defensively, if one is somehow still in flight, signal it to
     // cancel and drop our references — the worker frees nothing, so the cells
@@ -176,6 +195,7 @@ class ChdBloc extends Bloc<ChdEvent, ChdState> {
       hunkBytes: event.options.hunkBytes,
       force: event.force || event.options.force,
     );
+    _createDvd = event.createDvd;
     _startTime = DateTime.now();
 
     _startJob(_jobs[_currentIndex], emit);
@@ -184,8 +204,11 @@ class ChdBloc extends Bloc<ChdEvent, ChdState> {
   /// Spawns the worker for a single job and starts polling its progress. Mirrors
   /// the original single-file start path; called once per file in the queue.
   void _startJob(ChdJob job, Emitter<ChdState> emit) {
+    final actionLabel = job.action == ChdAction.create
+        ? 'create (${_createDvd ? 'DVD' : 'CD'})'
+        : 'extract (${job.sourceIsDvd ? 'DVD' : 'CD'})';
     _logger.info('CHD job ${_currentIndex + 1}/${_jobs.length}: '
-        'action=${job.action.name}, path=${job.inputPath}');
+        'action=$actionLabel, path=${job.inputPath}');
     _cancelRequested = false;
     emit(ChdProgress(0, _position));
 
@@ -215,6 +238,8 @@ class ChdBloc extends Bloc<ChdEvent, ChdState> {
           outputPath: job.outputPath,
           outputBinPath: job.outputBinPath,
           options: _options,
+          createDvd: _createDvd,
+          sourceIsDvd: job.sourceIsDvd,
           progressAddress: _progressCell!.address,
           cancelAddress: _cancelCell!.address,
           sendPort: _receivePort!.sendPort,

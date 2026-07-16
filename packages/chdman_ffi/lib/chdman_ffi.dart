@@ -15,7 +15,15 @@ final DynamicLibrary _dylib = () {
     return DynamicLibrary.open('$_libName.dll');
   }
   if (Platform.isMacOS || Platform.isIOS) {
-    return DynamicLibrary.open('$_libName.framework/$_libName');
+    // The framework name depends on the dependency manager: Swift Package
+    // Manager names it after the SPM product (dashes), CocoaPods after the pod
+    // (underscores). Try the SPM name first, then fall back to CocoaPods.
+    final String spmName = _libName.replaceAll('_', '-');
+    try {
+      return DynamicLibrary.open('$spmName.framework/$spmName');
+    } on ArgumentError {
+      return DynamicLibrary.open('$_libName.framework/$_libName');
+    }
   }
   throw UnsupportedError('Unsupported platform: ${Platform.operatingSystem}');
 }();
@@ -47,6 +55,21 @@ typedef _ChdmanCreateCdExDart = int Function(
   Pointer<Int32> cancelFlag,
 );
 
+typedef _ChdmanCreateDvdExNative = Int32 Function(
+  Pointer<Utf8> inputPath,
+  Pointer<Utf8> outputChdPath,
+  Pointer<_ChdmanOptionsNative> options,
+  Pointer<Int32> progressPermille,
+  Pointer<Int32> cancelFlag,
+);
+typedef _ChdmanCreateDvdExDart = int Function(
+  Pointer<Utf8> inputPath,
+  Pointer<Utf8> outputChdPath,
+  Pointer<_ChdmanOptionsNative> options,
+  Pointer<Int32> progressPermille,
+  Pointer<Int32> cancelFlag,
+);
+
 typedef _ChdmanExtractCdExNative = Int32 Function(
   Pointer<Utf8> inputChdPath,
   Pointer<Utf8> outputCuePath,
@@ -64,13 +87,50 @@ typedef _ChdmanExtractCdExDart = int Function(
   Pointer<Int32> cancelFlag,
 );
 
+typedef _ChdmanExtractDvdExNative = Int32 Function(
+  Pointer<Utf8> inputChdPath,
+  Pointer<Utf8> outputIsoPath,
+  Pointer<_ChdmanOptionsNative> options,
+  Pointer<Int32> progressPermille,
+  Pointer<Int32> cancelFlag,
+);
+typedef _ChdmanExtractDvdExDart = int Function(
+  Pointer<Utf8> inputChdPath,
+  Pointer<Utf8> outputIsoPath,
+  Pointer<_ChdmanOptionsNative> options,
+  Pointer<Int32> progressPermille,
+  Pointer<Int32> cancelFlag,
+);
+
+typedef _ChdmanChdIsDvdNative = Int32 Function(Pointer<Utf8> inputChdPath);
+typedef _ChdmanChdIsDvdDart = int Function(Pointer<Utf8> inputChdPath);
+
+typedef _ChdmanLastErrorNative = Pointer<Utf8> Function();
+typedef _ChdmanLastErrorDart = Pointer<Utf8> Function();
+
 final _ChdmanCreateCdExDart _chdmanCreateCdEx = _dylib
     .lookupFunction<_ChdmanCreateCdExNative, _ChdmanCreateCdExDart>(
         'chdman_create_cd_ex');
 
+final _ChdmanCreateDvdExDart _chdmanCreateDvdEx = _dylib
+    .lookupFunction<_ChdmanCreateDvdExNative, _ChdmanCreateDvdExDart>(
+        'chdman_create_dvd_ex');
+
 final _ChdmanExtractCdExDart _chdmanExtractCdEx = _dylib
     .lookupFunction<_ChdmanExtractCdExNative, _ChdmanExtractCdExDart>(
         'chdman_extract_cd_ex');
+
+final _ChdmanExtractDvdExDart _chdmanExtractDvdEx = _dylib
+    .lookupFunction<_ChdmanExtractDvdExNative, _ChdmanExtractDvdExDart>(
+        'chdman_extract_dvd_ex');
+
+final _ChdmanChdIsDvdDart _chdmanChdIsDvd = _dylib
+    .lookupFunction<_ChdmanChdIsDvdNative, _ChdmanChdIsDvdDart>(
+        'chdman_chd_is_dvd');
+
+final _ChdmanLastErrorDart _chdmanLastError = _dylib
+    .lookupFunction<_ChdmanLastErrorNative, _ChdmanLastErrorDart>(
+        'chdman_last_error');
 
 /// Tunable chdman options, mirroring the relevant command-line flags. Plain
 /// data so it can be sent across isolates; converted to the native struct at
@@ -160,6 +220,35 @@ int chdmanCreateCd(
   }
 }
 
+/// Creates a DVD CHD at [outputChdPath] from the raw DVD image at [inputPath]
+/// (`.iso`). The input is treated as a flat stream of 2048-byte logical sectors,
+/// so its size must be a multiple of 2048. [ChdOptions.codecs] takes the general
+/// codec tokens (`lzma`/`zlib`/`huff`/`flac`/`zstd`/`none`); null/empty (or a CD
+/// token) selects the createdvd default `lzma,zlib,huff,flac`. Returns a native
+/// result code (see [ChdmanResult]).
+///
+/// See [chdmanCreateCd] for the [progress]/[cancel] contract. Run off the UI
+/// isolate.
+int chdmanCreateDvd(
+  String inputPath,
+  String outputChdPath, {
+  ChdOptions options = const ChdOptions(),
+  Pointer<Int32>? progress,
+  Pointer<Int32>? cancel,
+}) {
+  final inputPtr = inputPath.toNativeUtf8();
+  final outputPtr = outputChdPath.toNativeUtf8();
+  final optionsPtr = _allocOptions(options);
+  try {
+    return _chdmanCreateDvdEx(
+        inputPtr, outputPtr, optionsPtr, progress ?? nullptr, cancel ?? nullptr);
+  } finally {
+    malloc.free(inputPtr);
+    malloc.free(outputPtr);
+    _freeOptions(optionsPtr);
+  }
+}
+
 /// Extracts the CD CHD at [inputChdPath] into a `.cue` ([outputCuePath]) and
 /// `.bin` ([outputBinPath]) pair. Only [ChdOptions.force] is used. See
 /// [chdmanCreateCd] for the [progress] contract. Run off the UI isolate.
@@ -184,4 +273,52 @@ int chdmanExtractCd(
     malloc.free(binPtr);
     _freeOptions(optionsPtr);
   }
+}
+
+/// Extracts the DVD CHD at [inputChdPath] into a raw `.iso` ([outputIsoPath]),
+/// reading the CHD as a flat byte stream (chdman extractdvd). Returns
+/// [ChdmanResult.errInvalidInput] if [inputChdPath] is not a DVD CHD. Only
+/// [ChdOptions.force] is used. See [chdmanCreateCd] for the [progress]/[cancel]
+/// contract. Run off the UI isolate.
+int chdmanExtractDvd(
+  String inputChdPath,
+  String outputIsoPath, {
+  ChdOptions options = const ChdOptions(),
+  Pointer<Int32>? progress,
+  Pointer<Int32>? cancel,
+}) {
+  final inputPtr = inputChdPath.toNativeUtf8();
+  final isoPtr = outputIsoPath.toNativeUtf8();
+  final optionsPtr = _allocOptions(options);
+  try {
+    return _chdmanExtractDvdEx(
+        inputPtr, isoPtr, optionsPtr, progress ?? nullptr, cancel ?? nullptr);
+  } finally {
+    malloc.free(inputPtr);
+    malloc.free(isoPtr);
+    _freeOptions(optionsPtr);
+  }
+}
+
+/// Reports whether the CHD at [path] is a DVD CHD, so extraction can be routed
+/// to [chdmanExtractDvd] (raw `.iso`) instead of [chdmanExtractCd] (`.cue`/
+/// `.bin`). Returns 1 for a DVD CHD, 0 for any other CHD, or a negative
+/// [ChdmanResult] code if the file cannot be opened. Cheap (header read only).
+int chdmanChdIsDvd(String path) {
+  final pathPtr = path.toNativeUtf8();
+  try {
+    return _chdmanChdIsDvd(pathPtr);
+  } finally {
+    malloc.free(pathPtr);
+  }
+}
+
+/// The native detail for the most recent failed chdman call on the current
+/// thread, or an empty string if none. Call this immediately after a non-ok
+/// result from [chdmanCreateCd]/[chdmanCreateDvd]/[chdmanExtractCd]/
+/// [chdmanExtractDvd] on the same isolate to enrich the generic [ChdmanResult]
+/// code with the real reason.
+String chdmanLastError() {
+  final ptr = _chdmanLastError();
+  return ptr == nullptr ? '' : ptr.toDartString();
 }

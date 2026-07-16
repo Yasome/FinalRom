@@ -32,6 +32,17 @@
 
 namespace {
 
+// Human-readable detail for the most recent failed call on the calling thread,
+// so the Dart side can surface the real reason instead of a bare error code.
+// Cleared at the start of each entry point and set right before a failure
+// return; read via chdman_last_error() on the same thread once the call returns.
+thread_local std::string g_last_error;
+
+void set_last_error(const std::string &message) { g_last_error = message; }
+void set_last_error(const std::error_condition &condition) {
+  g_last_error = condition.message();
+}
+
 bool file_exists(const char *path) {
   if (!path) return false;
   FILE *probe = std::fopen(path, "rb");
@@ -138,6 +149,31 @@ class chd_cd_compressor : public chd_file_compressor {
   cdrom_file::track_input_info &m_info;
 };
 
+// ======================> chd_rawfile_compressor (ported from chdman.cpp)
+// Feeds a flat byte range of an already-open file to the compressor, with no CD
+// framing. Used by createdvd, where the input ISO is just a stream of 2048-byte
+// logical sectors. The referenced file must outlive this object (its worker
+// threads read through m_file until the compressor is destroyed).
+class chd_rawfile_compressor : public chd_file_compressor {
+ public:
+  chd_rawfile_compressor(util::random_read &file, uint64_t offset, uint64_t maxoffset)
+      : m_file(file), m_offset(offset), m_maxoffset(maxoffset) {}
+
+  virtual uint32_t read_data(void *dest, uint64_t offset, uint32_t length) override {
+    offset += m_offset;
+    if (offset >= m_maxoffset) return 0;
+    if (offset + length > m_maxoffset) length = static_cast<uint32_t>(m_maxoffset - offset);
+    auto const [err, actual] = util::read_at(m_file, offset, dest, length);
+    if (err) throw err;
+    return static_cast<uint32_t>(actual);
+  }
+
+ private:
+  util::random_read &m_file;
+  uint64_t m_offset;
+  uint64_t m_maxoffset;
+};
+
 // Maps a comma-separated chdman codec token list (e.g. "cdlz,cdzl,cdfl") to the
 // chd_codec_type array create() expects. NULL/empty input, or any unrecognized
 // token, leaves the chdman CD default in place. The array is always
@@ -176,6 +212,45 @@ void parse_cd_codecs(const char *codecs, chd_codec_type out[4]) {
   for (int slot = 0; slot < 4; slot++) out[slot] = (slot < count) ? parsed[slot] : CHD_CODEC_NONE;
 }
 
+// DVD counterpart of parse_cd_codecs using the general (non-CD) codec tokens.
+// The default matches chdman's createdvd, which reuses the hard-disk set
+// "lzma,zlib,huff,flac". Any unrecognized token (e.g. a CD token like "cdlz"
+// passed through from the shared options) leaves that default in place.
+void parse_dvd_codecs(const char *codecs, chd_codec_type out[4]) {
+  out[0] = CHD_CODEC_LZMA;
+  out[1] = CHD_CODEC_ZLIB;
+  out[2] = CHD_CODEC_HUFFMAN;
+  out[3] = CHD_CODEC_FLAC;
+  if (!codecs || !*codecs) return;
+
+  chd_codec_type parsed[4] = {CHD_CODEC_NONE, CHD_CODEC_NONE, CHD_CODEC_NONE, CHD_CODEC_NONE};
+  int count = 0;
+  const std::string list(codecs);
+  size_t start = 0;
+  while (count < 4 && start <= list.size()) {
+    const size_t comma = list.find(',', start);
+    std::string token = list.substr(start, comma == std::string::npos ? std::string::npos : comma - start);
+    const size_t first = token.find_first_not_of(" \t");
+    const size_t last = token.find_last_not_of(" \t");
+    token = (first == std::string::npos) ? std::string() : token.substr(first, last - first + 1);
+
+    chd_codec_type type;
+    if (token == "lzma") type = CHD_CODEC_LZMA;
+    else if (token == "zlib") type = CHD_CODEC_ZLIB;
+    else if (token == "huff") type = CHD_CODEC_HUFFMAN;
+    else if (token == "flac") type = CHD_CODEC_FLAC;
+    else if (token == "zstd") type = CHD_CODEC_ZSTD;
+    else if (token == "none" || token.empty()) type = CHD_CODEC_NONE;
+    else return;  // unknown token (incl. CD tokens): keep the safe default
+
+    parsed[count++] = type;
+    if (comma == std::string::npos) break;
+    start = comma + 1;
+  }
+  if (count == 0) return;
+  for (int slot = 0; slot < 4; slot++) out[slot] = (slot < count) ? parsed[slot] : CHD_CODEC_NONE;
+}
+
 // Honors chdman's -np by routing through the OSDPROCESSORS env var that the osd
 // work queue reads when sizing its thread pool (osd_getenv -> std::getenv). Must
 // run before any osd_work_queue_alloc, i.e. before constructing the compressor.
@@ -201,6 +276,7 @@ int run_compression(chd_file_compressor &chd, volatile int *progress_permille,
     if (progress_permille) *progress_permille = static_cast<int>(complete * 1000.0 + 0.5);
   }
   if (!err && progress_permille) *progress_permille = 1000;
+  if (err) set_last_error(err);
   return err ? CHDMAN_FFI_ERR_CODEC : CHDMAN_FFI_OK;
 }
 
@@ -230,6 +306,7 @@ FFI_PLUGIN_EXPORT int chdman_create_cd_ex(const char *input_path, const char *ou
                                           const chdman_options *options,
                                           volatile int *progress_permille,
                                           volatile int *cancel_flag) {
+  g_last_error.clear();
   if (!input_path || !output_chd_path) return CHDMAN_FFI_ERR_INVALID_INPUT;
   if (!file_exists(input_path)) return CHDMAN_FFI_ERR_OPEN_INPUT;
   const int force = options ? options->force : 0;
@@ -255,6 +332,14 @@ FFI_PLUGIN_EXPORT int chdman_create_cd_ex(const char *input_path, const char *ou
       totalsectors += trackinfo.frames + trackinfo.extraframes;
     }
 
+    // A zero-track / zero-sector TOC (e.g. a bare .bin with no cue sheet, or a
+    // cue whose referenced tracks could not be sized) would otherwise create a
+    // 0-hunk CHD whose compressor never finalizes and spins forever. Reject it.
+    if (toc.numtrks == 0 || totalsectors == 0) {
+      set_last_error("no tracks found in input; a .bin needs its .cue sheet");
+      return CHDMAN_FFI_ERR_INVALID_INPUT;
+    }
+
     chd_codec_type compression[4];
     parse_cd_codecs(options ? options->codecs : nullptr, compression);
 
@@ -266,10 +351,10 @@ FFI_PLUGIN_EXPORT int chdman_create_cd_ex(const char *input_path, const char *ou
     auto chd = std::make_unique<chd_cd_compressor>(toc, track_info);
     err = chd->create(output_chd_path, uint64_t(totalsectors) * cdrom_file::FRAME_SIZE, hunk_size,
                       cdrom_file::FRAME_SIZE, compression);
-    if (err) return CHDMAN_FFI_ERR_OPEN_OUTPUT;
+    if (err) { set_last_error(err); return CHDMAN_FFI_ERR_OPEN_OUTPUT; }
 
     err = cdrom_file::write_metadata(chd.get(), toc);
-    if (err) return CHDMAN_FFI_ERR_CODEC;
+    if (err) { set_last_error(err); return CHDMAN_FFI_ERR_CODEC; }
 
     const int rc = run_compression(*chd, progress_permille, cancel_flag);
     // Destroy the compressor first so its worker threads stop and the output
@@ -277,10 +362,16 @@ FFI_PLUGIN_EXPORT int chdman_create_cd_ex(const char *input_path, const char *ou
     chd.reset();
     if (rc != CHDMAN_FFI_OK) std::remove(output_chd_path);
     return rc;
-  } catch (const std::error_condition &) {
+  } catch (const std::error_condition &condition) {
+    set_last_error(condition);
+    std::remove(output_chd_path);
+    return CHDMAN_FFI_ERR_INTERNAL;
+  } catch (const std::exception &ex) {
+    set_last_error(ex.what());
     std::remove(output_chd_path);
     return CHDMAN_FFI_ERR_INTERNAL;
   } catch (...) {
+    set_last_error("unknown native exception");
     std::remove(output_chd_path);
     return CHDMAN_FFI_ERR_INTERNAL;
   }
@@ -292,11 +383,90 @@ FFI_PLUGIN_EXPORT int chdman_create_cd(const char *input_path, const char *outpu
   return chdman_create_cd_ex(input_path, output_chd_path, &options, nullptr, nullptr);
 }
 
+FFI_PLUGIN_EXPORT int chdman_create_dvd_ex(const char *input_path, const char *output_chd_path,
+                                           const chdman_options *options,
+                                           volatile int *progress_permille,
+                                           volatile int *cancel_flag) {
+  g_last_error.clear();
+  if (!input_path || !output_chd_path) return CHDMAN_FFI_ERR_INVALID_INPUT;
+  if (!file_exists(input_path)) return CHDMAN_FFI_ERR_OPEN_INPUT;
+  const int force = options ? options->force : 0;
+  if (!force && file_exists(output_chd_path)) return CHDMAN_FFI_ERR_OUTPUT_EXISTS;
+  if (force && file_exists(output_chd_path)) std::remove(output_chd_path);
+
+  if (progress_permille) *progress_permille = 0;
+
+  // Must precede compressor construction so the work queue picks up the cap.
+  apply_num_processors(options ? options->num_processors : 0);
+
+  // A DVD CHD is a flat stream of 2048-byte logical sectors (chdman createdvd):
+  // unit size is fixed at 2048 and the hunk default is two sectors.
+  constexpr uint32_t kDvdSectorSize = 2048;
+
+  // input_file is declared before the compressor so it outlives it: the
+  // compressor's worker threads read through it until the compressor is
+  // destroyed.
+  util::core_file::ptr input_file;
+  try {
+    std::error_condition err = util::core_file::open(input_path, OPEN_FLAG_READ, input_file);
+    if (err) return CHDMAN_FFI_ERR_OPEN_INPUT;
+
+    uint64_t input_size = 0;
+    if (input_file->length(input_size)) return CHDMAN_FFI_ERR_OPEN_INPUT;
+    if (input_size == 0 || (input_size % kDvdSectorSize) != 0)
+      return CHDMAN_FFI_ERR_INVALID_INPUT;
+
+    chd_codec_type compression[4];
+    parse_dvd_codecs(options ? options->codecs : nullptr, compression);
+
+    const int requested_hunk = options ? options->hunk_bytes : 0;
+    uint32_t hunk_size = (requested_hunk > 0) ? static_cast<uint32_t>(requested_hunk)
+                                              : 2 * kDvdSectorSize;
+    // The hunk must be a whole number of sectors; fall back to the default if not.
+    if ((hunk_size % kDvdSectorSize) != 0) hunk_size = 2 * kDvdSectorSize;
+
+    auto chd = std::make_unique<chd_rawfile_compressor>(*input_file, 0, input_size);
+    err = chd->create(output_chd_path, input_size, hunk_size, kDvdSectorSize, compression);
+    if (err) { set_last_error(err); return CHDMAN_FFI_ERR_OPEN_OUTPUT; }
+
+    // The "DVD " tag (empty payload) is what marks the CHD as a DVD; emulators
+    // key on its presence via chd_file::check_is_dvd().
+    err = chd->write_metadata(DVD_METADATA_TAG, 0, std::string());
+    if (err) { set_last_error(err); return CHDMAN_FFI_ERR_CODEC; }
+
+    const int rc = run_compression(*chd, progress_permille, cancel_flag);
+    // Destroy the compressor first so its worker threads stop (and stop touching
+    // input_file) and the output handle is released before any partial cleanup.
+    chd.reset();
+    if (rc != CHDMAN_FFI_OK) std::remove(output_chd_path);
+    return rc;
+  } catch (const std::error_condition &condition) {
+    set_last_error(condition);
+    std::remove(output_chd_path);
+    return CHDMAN_FFI_ERR_INTERNAL;
+  } catch (const std::exception &ex) {
+    set_last_error(ex.what());
+    std::remove(output_chd_path);
+    return CHDMAN_FFI_ERR_INTERNAL;
+  } catch (...) {
+    set_last_error("unknown native exception");
+    std::remove(output_chd_path);
+    return CHDMAN_FFI_ERR_INTERNAL;
+  }
+}
+
+FFI_PLUGIN_EXPORT int chdman_create_dvd(const char *input_path, const char *output_chd_path,
+                                        int force) {
+  const chdman_options options = {nullptr, 0, 0, force};
+  return chdman_create_dvd_ex(input_path, output_chd_path, &options, nullptr, nullptr);
+}
+
 FFI_PLUGIN_EXPORT int chdman_extract_cd_ex(const char *input_chd_path, const char *output_cue_path,
                                            const char *output_bin_path,
                                            const chdman_options *options,
                                            volatile int *progress_permille,
                                            volatile int *cancel_flag) {
+  g_last_error.clear();
   if (!input_chd_path || !output_cue_path || !output_bin_path)
     return CHDMAN_FFI_ERR_INVALID_INPUT;
   if (!file_exists(input_chd_path)) return CHDMAN_FFI_ERR_OPEN_INPUT;
@@ -408,9 +578,14 @@ FFI_PLUGIN_EXPORT int chdman_extract_cd_ex(const char *input_chd_path, const cha
 
     if (progress_permille) *progress_permille = 1000;
     return CHDMAN_FFI_OK;
-  } catch (const std::error_condition &) {
+  } catch (const std::error_condition &condition) {
+    set_last_error(condition);
+    return CHDMAN_FFI_ERR_INTERNAL;
+  } catch (const std::exception &ex) {
+    set_last_error(ex.what());
     return CHDMAN_FFI_ERR_INTERNAL;
   } catch (...) {
+    set_last_error("unknown native exception");
     return CHDMAN_FFI_ERR_INTERNAL;
   }
 }
@@ -421,6 +596,125 @@ FFI_PLUGIN_EXPORT int chdman_extract_cd(const char *input_chd_path, const char *
   return chdman_extract_cd_ex(input_chd_path, output_cue_path, output_bin_path, &options, nullptr,
                               nullptr);
 }
+
+FFI_PLUGIN_EXPORT int chdman_extract_dvd_ex(const char *input_chd_path, const char *output_iso_path,
+                                            const chdman_options *options,
+                                            volatile int *progress_permille,
+                                            volatile int *cancel_flag) {
+  g_last_error.clear();
+  if (!input_chd_path || !output_iso_path) return CHDMAN_FFI_ERR_INVALID_INPUT;
+  if (!file_exists(input_chd_path)) return CHDMAN_FFI_ERR_OPEN_INPUT;
+  const int force = options ? options->force : 0;
+  if (!force && file_exists(output_iso_path)) return CHDMAN_FFI_ERR_OUTPUT_EXISTS;
+
+  if (progress_permille) *progress_permille = 0;
+
+  // Declared before the try so it is still in scope (and resettable) in the
+  // catch/cleanup paths that delete a partial .iso.
+  util::core_file::ptr iso_file;
+  try {
+    chd_file input_chd;
+    std::error_condition err = input_chd.open(input_chd_path, false);
+    if (err) { set_last_error(err); return CHDMAN_FFI_ERR_OPEN_INPUT; }
+
+    // A DVD CHD is read as a flat byte stream; running this on a CD CHD would
+    // produce a garbled image. The caller routes by type, but guard anyway.
+    if (input_chd.check_is_dvd()) {
+      set_last_error("input is not a DVD CHD");
+      return CHDMAN_FFI_ERR_INVALID_INPUT;
+    }
+
+    err = util::core_file::open(output_iso_path, OPEN_FLAG_WRITE | OPEN_FLAG_CREATE, iso_file);
+    if (err) { set_last_error(err); return CHDMAN_FFI_ERR_OPEN_OUTPUT; }
+
+    const uint64_t total_bytes = input_chd.logical_bytes();
+    const uint32_t hunk_size = input_chd.hunk_bytes();
+    if (hunk_size == 0) {
+      set_last_error("CHD reports a zero hunk size");
+      return CHDMAN_FFI_ERR_INVALID_INPUT;
+    }
+
+    // Read raw via chd_file (hunk-size agnostic), not dvdrom_file, which would
+    // reject our 4096-byte hunks. One hunk per read keeps the decode cache hot.
+    std::vector<uint8_t> buffer(hunk_size);
+    uint64_t offset = 0;
+    int result = CHDMAN_FFI_OK;
+    while (offset < total_bytes) {
+      if (cancel_flag && *cancel_flag) { result = CHDMAN_FFI_ERR_CANCELLED; break; }
+      const uint64_t remaining = total_bytes - offset;
+      const uint32_t chunk =
+          (remaining < hunk_size) ? static_cast<uint32_t>(remaining) : hunk_size;
+
+      err = input_chd.read_bytes(offset, buffer.data(), chunk);
+      if (err) { set_last_error(err); result = CHDMAN_FFI_ERR_CODEC; break; }
+
+      auto const [writerr, written] = util::write(*iso_file, buffer.data(), chunk);
+      if (writerr || written != chunk) {
+        set_last_error("failed to write the output image");
+        result = CHDMAN_FFI_ERR_OPEN_OUTPUT;
+        break;
+      }
+
+      offset += chunk;
+      if (progress_permille) *progress_permille = static_cast<int>(offset * 1000 / total_bytes);
+    }
+
+    if (result != CHDMAN_FFI_OK) {
+      // Release the handle before deleting the partial/cancelled .iso.
+      iso_file.reset();
+      std::remove(output_iso_path);
+      return result;
+    }
+
+    if (progress_permille) *progress_permille = 1000;
+    return CHDMAN_FFI_OK;
+  } catch (const std::error_condition &condition) {
+    set_last_error(condition);
+    iso_file.reset();
+    std::remove(output_iso_path);
+    return CHDMAN_FFI_ERR_INTERNAL;
+  } catch (const std::exception &ex) {
+    set_last_error(ex.what());
+    iso_file.reset();
+    std::remove(output_iso_path);
+    return CHDMAN_FFI_ERR_INTERNAL;
+  } catch (...) {
+    set_last_error("unknown native exception");
+    iso_file.reset();
+    std::remove(output_iso_path);
+    return CHDMAN_FFI_ERR_INTERNAL;
+  }
+}
+
+FFI_PLUGIN_EXPORT int chdman_extract_dvd(const char *input_chd_path, const char *output_iso_path,
+                                         int force) {
+  const chdman_options options = {nullptr, 0, 0, force};
+  return chdman_extract_dvd_ex(input_chd_path, output_iso_path, &options, nullptr, nullptr);
+}
+
+FFI_PLUGIN_EXPORT int chdman_chd_is_dvd(const char *input_chd_path) {
+  g_last_error.clear();
+  if (!input_chd_path) return CHDMAN_FFI_ERR_INVALID_INPUT;
+  if (!file_exists(input_chd_path)) return CHDMAN_FFI_ERR_OPEN_INPUT;
+  try {
+    chd_file input_chd;
+    std::error_condition err = input_chd.open(input_chd_path, false);
+    if (err) { set_last_error(err); return CHDMAN_FFI_ERR_OPEN_INPUT; }
+    // check_is_dvd() yields no error when the "DVD " tag is present.
+    return input_chd.check_is_dvd() ? 0 : 1;
+  } catch (const std::error_condition &condition) {
+    set_last_error(condition);
+    return CHDMAN_FFI_ERR_INTERNAL;
+  } catch (const std::exception &ex) {
+    set_last_error(ex.what());
+    return CHDMAN_FFI_ERR_INTERNAL;
+  } catch (...) {
+    set_last_error("unknown native exception");
+    return CHDMAN_FFI_ERR_INTERNAL;
+  }
+}
+
+FFI_PLUGIN_EXPORT const char *chdman_last_error(void) { return g_last_error.c_str(); }
 
 #else /* !CHDMAN_AVAILABLE */
 
@@ -459,6 +753,27 @@ FFI_PLUGIN_EXPORT int chdman_create_cd(const char *input_path,
   return CHDMAN_FFI_ERR_LIB_UNAVAILABLE;
 }
 
+FFI_PLUGIN_EXPORT int chdman_create_dvd_ex(const char *input_path, const char *output_chd_path,
+                                           const chdman_options *options,
+                                           volatile int *progress_permille,
+                                           volatile int *cancel_flag) {
+  (void)input_path;
+  (void)output_chd_path;
+  (void)options;
+  (void)progress_permille;
+  (void)cancel_flag;
+  return CHDMAN_FFI_ERR_LIB_UNAVAILABLE;
+}
+
+FFI_PLUGIN_EXPORT int chdman_create_dvd(const char *input_path,
+                                        const char *output_chd_path,
+                                        int force) {
+  (void)input_path;
+  (void)output_chd_path;
+  (void)force;
+  return CHDMAN_FFI_ERR_LIB_UNAVAILABLE;
+}
+
 FFI_PLUGIN_EXPORT int chdman_extract_cd(const char *input_chd_path,
                                         const char *output_cue_path,
                                         const char *output_bin_path,
@@ -469,5 +784,33 @@ FFI_PLUGIN_EXPORT int chdman_extract_cd(const char *input_chd_path,
   (void)force;
   return CHDMAN_FFI_ERR_LIB_UNAVAILABLE;
 }
+
+FFI_PLUGIN_EXPORT int chdman_extract_dvd_ex(const char *input_chd_path, const char *output_iso_path,
+                                            const chdman_options *options,
+                                            volatile int *progress_permille,
+                                            volatile int *cancel_flag) {
+  (void)input_chd_path;
+  (void)output_iso_path;
+  (void)options;
+  (void)progress_permille;
+  (void)cancel_flag;
+  return CHDMAN_FFI_ERR_LIB_UNAVAILABLE;
+}
+
+FFI_PLUGIN_EXPORT int chdman_extract_dvd(const char *input_chd_path,
+                                         const char *output_iso_path,
+                                         int force) {
+  (void)input_chd_path;
+  (void)output_iso_path;
+  (void)force;
+  return CHDMAN_FFI_ERR_LIB_UNAVAILABLE;
+}
+
+FFI_PLUGIN_EXPORT int chdman_chd_is_dvd(const char *input_chd_path) {
+  (void)input_chd_path;
+  return CHDMAN_FFI_ERR_LIB_UNAVAILABLE;
+}
+
+FFI_PLUGIN_EXPORT const char *chdman_last_error(void) { return ""; }
 
 #endif /* CHDMAN_AVAILABLE */
