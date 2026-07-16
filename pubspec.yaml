@@ -2,7 +2,7 @@ name: final_rom
 description: "Final ROM - The ultimate utility for your retro ROMs."
 publish_to: "none" # Remove this line if you wish to publish to pub.dev
 
-version: 1.0.0+1
+version: 1.1.0+1
 
 environment:
   sdk: ^3.12.2
